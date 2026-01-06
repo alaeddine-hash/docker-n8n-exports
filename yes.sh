@@ -1,23 +1,26 @@
-WORKDIR=./   # <-- your folder with *.json
+SRC="./workflows.json"
+OUTDIR="./"
 
-for f in "$WORKDIR"/*.json; do
-  tmp="$(mktemp)"
+rm -rf "$OUTDIR"
+mkdir -p "$OUTDIR"
 
-  # generate one uuid per file (good enough and minimal)
-  UUID="$(uuidgen)"
+# Split + sanitize
+jq -c '.[]' "$SRC" | while IFS= read -r wf; do
+  # versionId non-null (si null/absent)
+  VID="$(uuidgen)"
 
-  jq --arg uuid "$UUID" '
-    def fix:
-      .active = false
-      | .versionId = (
-          if (.versionId == null or .versionId == "") then $uuid else .versionId end
-        );
+  # nom de fichier safe
+  NAME="$(echo "$wf" | jq -r '.name // "workflow"' | tr -cs '[:alnum:]._-' '_' | cut -c1-80)"
+  FILE="$OUTDIR/${NAME}_${VID}.json"
 
-    if type=="array" then
-      map(fix)
-    else
-      fix
-    end
-  ' "$f" > "$tmp" && mv "$tmp" "$f"
+  echo "$wf" | jq --arg vid "$VID" '
+    .active = false
+    | del(.id)                                # IMPORTANT: évite "Could not find workflow"
+    | .versionId = (.versionId // $vid)       # IMPORTANT: évite NOT NULL
+    | del(.createdAt, .updatedAt)             # optionnel
+  ' > "$FILE"
 done
+
+echo "✅ Workflows clean générés dans: $OUTDIR"
+ls -1 "$OUTDIR" | head
 

@@ -1,0 +1,502 @@
+{
+  "name": "Comprehensive LLM Usage Tracker & Cost Monitor with Node-Level Analytics",
+  "description": null,
+  "active": false,
+  "isArchived": true,
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "execution",
+        "operation": "get",
+        "executionId": "={{ $json.execution_id }}",
+        "options": {
+          "activeWorkflows": true
+        },
+        "requestOptions": {}
+      },
+      "id": "0537d0ba-2393-492c-b61a-16ce4569b501",
+      "name": "Get an execution",
+      "type": "n8n-nodes-base.n8n",
+      "position": [
+        816,
+        480
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "n8nApi": {
+          "id": "VJV7wXERD3CHxA4X",
+          "name": "n8n account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "execution_id",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "952af380-bdf3-4cbe-a700-d1091bbd67bc",
+      "name": "When Exc.",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        624,
+        576
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODE 1: Extract All Model Names\n// Finds all unique model names in workflow execution data\n\nconst findAllModels = (data) => {\n  const models = new Set();\n  const execs = Array.isArray(data) ? data : [data];\n  \n  execs.forEach(exec => {\n    const runData = exec?.data?.resultData?.runData || {};\n    Object.values(runData).forEach(runs => {\n      if (!Array.isArray(runs)) return;\n      runs.forEach(run => {\n        // Check all possible locations for model names\n        const locations = [\n          run.inputOverride?.ai_languageModel?.[0]?.[0]?.json?.options?.model,\n          run.data?.ai_languageModel?.[0]?.[0]?.json?.options?.model,\n          run.parameters?.model?.value,\n          run.parameters?.model,\n          run.options?.model\n        ];\n        \n        locations.forEach(model => {\n          if (model && typeof model === 'string') {\n            models.add(model);\n          }\n        });\n      });\n    });\n  });\n  \n  return Array.from(models);\n};\n\n// Process input and collect all unique models\nconst allModels = new Set();\n\nfor (const item of $input.all()) {\n  const models = findAllModels(item.json);\n  models.forEach(model => allModels.add(model));\n}\n\n// Return single item with models_used list\nreturn [{\n  json: {\n    models_used: Array.from(allModels),\n    model_count: allModels.size,\n    original_data: $input.all()[0].json\n  }\n}];"
+      },
+      "id": "e282f76e-5f44-4d09-a007-79e4443a4f9b",
+      "name": "Extract all model names",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1120,
+        368
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "content": "### Defined by User\n- Define the model name and standard name, even if you want to use same name. (Why? because we will use the standard name to find the cost of this model)\n- Model prices are per million token\n\n",
+        "height": 304,
+        "width": 352
+      },
+      "id": "cc779a62-e23d-4bb9-abf7-9ef1791c1edd",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1264,
+        80
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "### Check all model names are correctly defined",
+        "height": 240,
+        "width": 416,
+        "color": 3
+      },
+      "id": "40946ad8-f191-4d44-bca4-06853337a380",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1664,
+        288
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"model_price_dic\":{\n      \"gpt-5.1\": { \"input\": 1.25, \"output\": 10.0 },\n      \"gpt-5\": { \"input\": 1.25, \"output\": 10.0 },\n      \"gpt-5-mini\": { \"input\": 0.25,  \"output\": 2.0 },\n      \"gpt-5-nano\": { \"input\": 0.05, \"output\": 0.4 },\n      \"gpt-5.1-mini\": { \"input\": 0.25,  \"output\": 2.0 },\n      \"gpt-5.1-nano\": { \"input\": 0.05, \"output\": 0.4 },\n      \"gpt-4.1\": { \"input\": 2.0, \"output\": 8.0 },\n      \"gpt-4.1-mini\": { \"input\": 0.4, \"output\": 1.6 },\n      \"gpt-4.1-nano\": { \"input\": 0.1,  \"output\": 0.4 },\n      \"gpt-4o\": { \"input\": 2.5,  \"output\": 10.0 },\n      \"gpt-4o-mini\": { \"input\": 0.15, \"output\": 0.6 },\n      \"o1\": { \"input\": 15.0, \"output\": 60.0 },\n      \"o1-pro\": { \"input\": 150.0,  \"output\": 600.0 },\n      \"o3-pro\": { \"input\": 20.0,  \"output\": 80.0 },\n      \"o3\": { \"input\": 2.0,  \"output\": 8.0 },\n      \"o3-deep-research\": { \"input\": 10.0,\"output\": 40.0 },\n      \"o4-mini\": { \"input\": 1.1,  \"output\": 4.4 },\n      \"o4-mini-deep-research\": { \"input\": 2.0,\"output\": 8.0 },\n      \"o3-mini\": { \"input\": 1.1, \"output\": 4.4 },\n      \"o1-mini\": { \"input\": 1.1,  \"output\": 4.4 }\n    }\n  }",
+        "includeOtherFields": true,
+        "include": "selected",
+        "includeFields": "standardize_names_dic, models_used",
+        "options": {}
+      },
+      "id": "d4f77e57-f872-47e9-a49f-307f0da3aa50",
+      "name": "model prices",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        1472,
+        240
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"standardize_names_dic\":\n    {\n    \"gpt-4.1-mini\": \"gpt-4.1-mini\",\n    \"gpt-4\": \"gpt-4\",\n  \"gpt-5\": \"gpt-5\",\n  \"gpt5\": \"gpt-5\",\n  \"gpt-5-thinking\": \"gpt-5\",\n  \"gpt-5-auto-thinking\": \"gpt-5\",\n  \"gpt-5-instant\": \"gpt-5-mini\",\n  \"gpt-5-mini\": \"gpt-5-mini\",\n  \"gpt-5.1\": \"gpt-5.1\",\n  \"gpt5.1\": \"gpt-5.1\",\n  \"gpt-5.1-thinking\": \"gpt-5.1\",\n  \"gpt-5.1-auto-thinking\": \"gpt-5.1\",\n  \"gpt-5.1-instant\": \"gpt-5.1-mini\",\n  \"gpt-5.1-mini\": \"gpt-5.1-mini\"\n    }\n}\n",
+        "includeOtherFields": true,
+        "include": "selected",
+        "includeFields": "models_used",
+        "options": {}
+      },
+      "id": "8334bc61-e44f-4dc2-91c0-519b64a3984f",
+      "name": "Standardize names",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        1312,
+        240
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODE 2: Validate Models Against Dictionaries\n\nconst item = $input.first().json;\nconst models_used = item.models_used || [];\nconst standardize_names_dic = item.standardize_names_dic || {};\nconst model_price_dic = item.model_price_dic || {};\n\n// Check which models are missing from each dictionary\nconst missing_from_names = models_used.filter(model => !standardize_names_dic[model]);\nconst missing_from_prices = models_used.filter(model => !model_price_dic[model]);\n\n// Build result\nif (missing_from_names.length === 0 && missing_from_prices.length === 0) {\n  return [{\n    json: {\n      passed: true,\n      message: \"All models validated successfully\",\n      models_used: models_used,\n      standardize_names_dic: standardize_names_dic,\n      model_price_dic: model_price_dic,\n      original_data: item.original_data\n    }\n  }];\n} else {\n  const errors = [];\n  if (missing_from_names.length > 0) {\n    errors.push(`Missing from standardize_names_dic: ${missing_from_names.join(', ')}`);\n  }\n  if (missing_from_prices.length > 0) {\n    errors.push(`Missing from model_price_dic: ${missing_from_prices.join(', ')}`);\n  }\n  \n  return [{\n    json: {\n      passed: false,\n      message: errors.join(' | '),\n      missing_from_names: missing_from_names,\n      missing_from_prices: missing_from_prices,\n      models_used: models_used\n    }\n  }];\n}"
+      },
+      "id": "695df344-56fb-4bdc-8822-18240b214d42",
+      "name": "Check correctly defined",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1728,
+        352
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ $json.message }}\n\nThings missed from \"standardized names\":\n{{ $json.missing_from_names?.join(', ') || \"none\" }}\n\nThings missed from \"model price\":\n{{ $json.missing_from_prices?.join(', ') || \"none\" }}"
+      },
+      "id": "a871ea02-82f7-420f-960c-bd3fcefa2512",
+      "name": "Stop and Error",
+      "type": "n8n-nodes-base.stopAndError",
+      "position": [
+        2112,
+        304
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "f0b929f5-c865-4380-b0d8-ca23ab3b3674",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.passed }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a8ef1a53-5ac4-4e63-8dd5-f6c3d5d58eaf",
+      "name": "If not passed",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1920,
+        352
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {},
+      "id": "c5f981cd-9949-4f66-be79-49b0fd7c5997",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        2192,
+        528
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Hardened LLM usage extractor (drop-in for \"Smart Extract LLM data\")\n\nfunction pick(...candidates) {\n  for (const c of candidates) {\n    if (c !== undefined && c !== null) return c;\n  }\n  return undefined;\n}\n\nfunction getUsage(run) {\n  // Common usage shapes\n  const u1 = run?.data?.ai_languageModel?.[0]?.[0]?.json?.tokenUsage;\n  const u2 = run?.tokenUsage;\n  const u3 = run?.data?.response?.body?.usage;               // OpenAI / SDK-like\n  const u4 = run?.data?.usage;                               // some nodes put usage here\n  const u5 = run?.data?.ai_languageModel?.[0]?.[0]?.json?.response?.usage;\n  const u6 = run?.data?.response?.generations?.[0]?.[0]?.generationInfo?.token_usage; // LangChain-ish\n  const u7 = run?.metrics?.token_usage;                      // agent wrappers\n\n  const usage = pick(u1, u2, u3, u4, u5, u6, u7);\n  if (!usage) return null;\n\n  // Tokens “simples”\n  const prompt = pick(\n    usage.promptTokens,\n    usage.prompt_tokens,\n    usage.input_tokens,\n    usage.inputTokens\n  );\n  const completion = pick(\n    usage.completionTokens,\n    usage.completion_tokens,\n    usage.output_tokens,\n    usage.outputTokens\n  );\n  const total = pick(usage.totalTokens, usage.total_tokens);\n\n  // --- NEW: aller chercher dans les détails imbriqués ---\n  let reasoning = pick(\n    usage.reasoning_tokens,\n    usage.reasoningTokens\n  );\n\n  // Formats responses / reasoning (o1, o3, etc.)\n  if (!reasoning) {\n    reasoning = pick(\n      usage.output_tokens_details?.reasoning_tokens,\n      usage.completion_tokens_details?.reasoning_tokens\n    );\n  }\n\n  // cached tokens souvent côté prompt\n  let cached = pick(\n    usage.cached_tokens,\n    usage.cachedTokens\n  );\n\n  if (!cached) {\n    cached = pick(\n      usage.prompt_tokens_details?.cached_tokens,\n      usage.input_tokens_details?.cached_tokens\n    );\n  }\n\n  return {\n    promptTokens: Number(prompt || 0),\n    completionTokens: Number(completion || 0),\n    totalTokens: Number(total || (prompt || 0) + (completion || 0)),\n    reasoningTokens: Number(reasoning || 0),\n    cachedTokens: Number(cached || 0),\n    _raw: usage,\n  };\n}\n\nfunction getModel(run) {\n  const io = run?.inputOverride?.ai_languageModel?.[0]?.[0]?.json;\n  const options = io?.options || {};\n  return pick(\n    options.model,\n    run?.parameters?.model?.value,\n    run?.parameters?.model,\n    run?.data?.response?.model,\n    run?.data?.model,\n    run?.options?.model,\n    'unknown'\n  );\n}\n\nconst results = [];\n\nfor (const execItem of $input.all()) {\n  const exec = execItem.json;\n  const runData = exec?.data?.resultData?.runData || {};\n  const workflowName = exec?.workflowData?.name || 'unknown';\n  const workflowId = exec?.workflowId || 'unknown';\n  const executionId = exec?.id || 'unknown';\n  const createdAt = exec?.createdAt || null;\n  const executionStatus = exec?.status || 'unknown';\n\n  const nodeKeys = Object.keys(runData);\n  if (nodeKeys.length === 0) {\n    results.push({ json: { executionId, workflowId, message: 'No runData', totalTokens: 0 }});\n    continue;\n  }\n\n  for (const [node, runs] of Object.entries(runData)) {\n    if (!Array.isArray(runs)) continue;\n\n    for (const run of runs) {\n      const usage = getUsage(run);\n      if (!usage) {\n        // Emit a “why skipped” row for auditing\n        results.push({\n          json: {\n            executionId, workflowId, node, message: 'No token usage found for node',\n            hints: [\n              'Check node type/response shape',\n              'Enable “Include Usage / Return Usage” if available',\n              'Ensure workflow saves execution data/progress'\n            ]\n          }\n        });\n        continue;\n      }\n\n      const io = run?.inputOverride?.ai_languageModel?.[0]?.[0]?.json || {};\n      const messages = io.messages || [];\n      const promptPreview = Array.isArray(messages) && messages.length\n        ? String(messages[0]).slice(0, 100) + (String(messages[0]).length > 100 ? '...' : '')\n        : '';\n\n      const responseObj = run?.data?.ai_languageModel?.[0]?.[0]?.json?.response?.generations?.[0]?.[0]\n        || run?.data?.response?.choices?.[0]\n        || {};\n      const finishReason = pick(\n        responseObj?.generationInfo?.finish_reason,\n        responseObj?.finish_reason,\n        'unknown'\n      );\n      const responseText = pick(responseObj?.text, responseObj?.message?.content, '');\n      const responsePreview = responseText\n        ? String(responseText).slice(0, 100) + (String(responseText).length > 100 ? '...' : '')\n        : '';\n\n      const previousNodes = [];\n      if (Array.isArray(run?.source)) {\n        for (const src of run.source) {\n          if (src.previousNode) previousNodes.push(src.previousNode);\n        }\n      }\n\n      results.push({\n        json: {\n          // Execution context\n          workflowName, workflowId, executionId, createdAt, executionStatus,\n\n          // Node info\n          node,\n          nodeExecutionStatus: run.executionStatus || 'unknown',\n          executionIndex: run.executionIndex || 0,\n\n          // Model & tokens\n          model: getModel(run),\n          promptTokens: usage.promptTokens,\n          completionTokens: usage.completionTokens,\n          totalTokens: usage.totalTokens,\n          reasoningTokens: usage.reasoningTokens,\n          cachedTokens: usage.cachedTokens,\n\n          // Performance\n          executionTime: run.executionTime || 0,\n          startTime: run.startTime || null,\n\n          // Params (best-effort)\n          temperature: io?.options?.temperature ?? io?.options?.model_kwargs?.temperature ?? null,\n          maxTokens: io?.options?.max_tokens ?? io?.options?.maxTokens ?? null,\n          timeout: io?.options?.timeout ?? null,\n          maxRetries: io?.options?.max_retries ?? 0,\n          finishReason,\n\n          // Context\n          previousNodes: previousNodes.join(' → ') || 'Start',\n          sessionId: run?.metadata?.sessionId || null,\n\n          // Previews\n          promptPreview,\n          responsePreview,\n        }\n      });\n    }\n  }\n}\n\nreturn results.length ? results : [{ json: { message: 'No LLM usage detected' } }];\n"
+      },
+      "id": "1b891bd1-bbe3-4e05-bb1f-ac77ccc70a7b",
+      "name": "Smart Extract LLM data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1104,
+        544
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODE 4: Calculate Costs and Add Summary\n\n// Get dictionaries from first item and LLM usages from rest\nconst configItem = $input.all().find(item => item.json.passed === true) || $input.first();\nconst standardize_names_dic = configItem.json.standardize_names_dic || {};\nconst model_price_dic = configItem.json.model_price_dic || {};\n\n// Filter out config item and get only LLM usage items\nconst llmUsages = $input.all().filter(item => {\n  const j = item.json || {};\n  return j.promptTokens !== undefined || j.completionTokens !== undefined || j.totalTokens !== undefined;\n});\n\n\n// Process each usage with costs\nconst results = llmUsages.map(item => {\n  const usage = item.json;\n  \n  // Standardize model name\n  const standardModel = standardize_names_dic[usage.model] || usage.model;\n  \n  // Get pricing (prices are per 1M tokens with \"input\"/\"output\" keys)\n  const pricing = model_price_dic[standardModel] || { input: 0, output: 0 };\n  \n  // Calculate costs (divide by 1,000,000 since prices are per million)\n  const promptCost = (usage.promptTokens / 1000000) * pricing.input;\n  const completionCost = (usage.completionTokens / 1000000) * pricing.output;\n  const totalCost = promptCost + completionCost;\n  \n  return {\n    json: {\n      ...usage,\n      standardModel,\n      promptCostUSD: promptCost.toFixed(8),\n      completionCostUSD: completionCost.toFixed(8),\n      totalCostUSD: totalCost.toFixed(8),\n      pricePerMPrompt: pricing.input,\n      pricePerMCompletion: pricing.output\n    }\n  };\n});\n\n// Calculate summary statistics if we have results\nif (results.length > 0) {\n  const summary = {\n    isSummary: true,\n    totalExecutions: results.length,\n    totalPromptTokens: 0,\n    totalCompletionTokens: 0,\n    totalTokens: 0,\n    totalPromptCostUSD: 0,\n    totalCompletionCostUSD: 0,\n    totalCostUSD: 0,\n    totalExecutionTimeMs: 0,\n    byModel: {},\n    byNode: {}\n  };\n  \n  // Calculate totals\n  results.forEach(r => {\n    summary.totalPromptTokens += r.json.promptTokens;\n    summary.totalCompletionTokens += r.json.completionTokens;\n    summary.totalTokens += r.json.totalTokens;\n    summary.totalPromptCostUSD += parseFloat(r.json.promptCostUSD);\n    summary.totalCompletionCostUSD += parseFloat(r.json.completionCostUSD);\n    summary.totalCostUSD += parseFloat(r.json.totalCostUSD);\n    summary.totalExecutionTimeMs += r.json.executionTime;\n    \n    // Group by model\n    const model = r.json.standardModel;\n    if (!summary.byModel[model]) {\n      summary.byModel[model] = {\n        count: 0,\n        promptTokens: 0,\n        completionTokens: 0,\n        totalTokens: 0,\n        totalCostUSD: 0\n      };\n    }\n    summary.byModel[model].count++;\n    summary.byModel[model].promptTokens += r.json.promptTokens;\n    summary.byModel[model].completionTokens += r.json.completionTokens;\n    summary.byModel[model].totalTokens += r.json.totalTokens;\n    summary.byModel[model].totalCostUSD += parseFloat(r.json.totalCostUSD);\n    \n    // Group by node\n    const node = r.json.node;\n    if (!summary.byNode[node]) {\n      summary.byNode[node] = {\n        count: 0,\n        totalTokens: 0,\n        totalCostUSD: 0\n      };\n    }\n    summary.byNode[node].count++;\n    summary.byNode[node].totalTokens += r.json.totalTokens;\n    summary.byNode[node].totalCostUSD += parseFloat(r.json.totalCostUSD);\n  });\n  \n  // Format costs\n  summary.totalPromptCostUSD = summary.totalPromptCostUSD.toFixed(8);\n  summary.totalCompletionCostUSD = summary.totalCompletionCostUSD.toFixed(8);\n  summary.totalCostUSD = summary.totalCostUSD.toFixed(8);\n  summary.avgCostPerCall = (parseFloat(summary.totalCostUSD) / summary.totalExecutions).toFixed(8);\n  summary.avgTokensPerCall = Math.round(summary.totalTokens / summary.totalExecutions);\n  \n  // Format byModel costs\n  Object.keys(summary.byModel).forEach(model => {\n    summary.byModel[model].totalCostUSD = summary.byModel[model].totalCostUSD.toFixed(8);\n  });\n  \n  // Format byNode costs\n  Object.keys(summary.byNode).forEach(node => {\n    summary.byNode[node].totalCostUSD = summary.byNode[node].totalCostUSD.toFixed(8);\n  });\n  \n  // Add summary as last item\n  results.push({ json: summary });\n}\n\nreturn results.length > 0 ? results : [{ \n  json: { \n    message: \"No LLM usage data found to calculate costs\" \n  } \n}];"
+      },
+      "id": "e731a100-392b-4d50-bf9f-ed73863ec6d5",
+      "name": "Calculate cost",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2400,
+        528
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {},
+      "id": "77863173-ae06-485d-97c1-640aebe882e2",
+      "name": "Test id",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        784,
+        288
+      ],
+      "typeVersion": 1,
+      "notes": "283\n353",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "content": "### Test with execution id\n\n",
+        "height": 240,
+        "width": 368,
+        "color": 7
+      },
+      "id": "ae66032f-a95f-4d09-afd5-1411fc463aea",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        368,
+        240
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "Where is the execution ID?\nIn your workflow at the top center, you can see \"Executions,\" and you can select any execution to see the ID, which is a number like 323.\n",
+        "width": 214,
+        "color": 7
+      },
+      "id": "c1f59812-a50c-4ce3-97b2-43d94e5cfb01",
+      "name": "Sticky Note4",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        384,
+        304
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "In case you did something incorrectly, you can see what models you missed to add and define",
+        "height": 144,
+        "width": 214,
+        "color": 7
+      },
+      "id": "aacdc959-13f5-4df1-a883-968829231408",
+      "name": "Sticky Note5",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2288,
+        288
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "You can do anything with this info:\n- Send a follow-up message with cost\n- Send another request to continue a process ...",
+        "height": 144,
+        "width": 214,
+        "color": 7
+      },
+      "id": "c7e046e2-431b-46aa-a70a-4797b2abff06",
+      "name": "Sticky Note6",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2560,
+        416
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * n8n Code node: aggregate execution telemetry\n * - Works whether executions come as one item per run (A)\n *   or as a single item containing an array (B).\n * - Ignores entries with isSummary === true\n */\n\nfunction toNum(x, def = 0) {\n  if (x === null || x === undefined) return def;\n  if (typeof x === 'number') return x;\n  const s = String(x).trim();\n  if (!s) return def;\n  const n = Number(s.replace(/[,$\\s]/g, '')); // handle \"0.1234\", \"1,234\", \"$0.12\"\n  return Number.isFinite(n) ? n : def;\n}\n\n// 1) Normalize input → executions[]\nlet executions = [];\n\n// Case B: single item contains the whole array in $json or $json.executions\nconst maybeArrayHere = items[0]?.json;\nif (Array.isArray(maybeArrayHere)) {\n  executions = maybeArrayHere;\n} else if (Array.isArray(maybeArrayHere?.executions)) {\n  executions = maybeArrayHere.executions;\n// Case A: each item is an execution row\n} else if (items.length > 0 && !Array.isArray(items[0]?.json)) {\n  executions = items.map(it => it.json);\n}\n\n// Filter out summary rows\nexecutions = executions.filter(e => !e?.isSummary);\n\n// 2) Accumulators\nconst totals = {\n  count: 0,\n  totalPromptTokens: 0,\n  totalCompletionTokens: 0,\n  totalTokens: 0,\n  totalPromptCostUSD: 0,\n  totalCompletionCostUSD: 0,\n  totalCostUSD: 0,\n  totalExecutionTimeMs: 0,\n};\n\nconst byModel = {};\nconst byNode = {};\n\nfunction bumpGroup(dict, key) {\n  if (!key) key = '(unknown)';\n  if (!dict[key]) {\n    dict[key] = {\n      count: 0,\n      promptTokens: 0,\n      completionTokens: 0,\n      totalTokens: 0,\n      totalPromptCostUSD: 0,\n      totalCompletionCostUSD: 0,\n      totalCostUSD: 0,\n      totalExecutionTimeMs: 0,\n    };\n  }\n  return dict[key];\n}\n\n// 3) Sum\nfor (const e of executions) {\n  const promptTokens = toNum(e.promptTokens);\n  const completionTokens = toNum(e.completionTokens);\n  const totalTokens = toNum(e.totalTokens);\n  const execTime = toNum(e.executionTime);        // ms\n  const promptCost = toNum(e.promptCostUSD);\n  const completionCost = toNum(e.completionCostUSD);\n  const totalCost = toNum(e.totalCostUSD);\n\n  totals.count += 1;\n  totals.totalPromptTokens += promptTokens;\n  totals.totalCompletionTokens += completionTokens;\n  totals.totalTokens += totalTokens;\n  totals.totalExecutionTimeMs += execTime;\n  totals.totalPromptCostUSD += promptCost;\n  totals.totalCompletionCostUSD += completionCost;\n  totals.totalCostUSD += totalCost;\n\n  // by model\n  const m = bumpGroup(byModel, e.model || e.standardModel);\n  m.count += 1;\n  m.promptTokens += promptTokens;\n  m.completionTokens += completionTokens;\n  m.totalTokens += totalTokens;\n  m.totalExecutionTimeMs += execTime;\n  m.totalPromptCostUSD += promptCost;\n  m.totalCompletionCostUSD += completionCost;\n  m.totalCostUSD += totalCost;\n\n  // by node\n  const n = bumpGroup(byNode, e.node);\n  n.count += 1;\n  n.promptTokens += promptTokens;\n  n.completionTokens += completionTokens;\n  n.totalTokens += totalTokens;\n  n.totalExecutionTimeMs += execTime;\n  n.totalPromptCostUSD += promptCost;\n  n.totalCompletionCostUSD += completionCost;\n  n.totalCostUSD += totalCost;\n}\n\n// 4) Averages\nconst avgCostPerCall = totals.count ? totals.totalCostUSD / totals.count : 0;\nconst avgTokensPerCall = totals.count ? Math.round(totals.totalTokens / totals.count) : 0;\n\n// 5) Output a single summary item\nreturn [\n  {\n    json: {\n      isSummary: true,\n      totalExecutions: totals.count,\n      totalPromptTokens: totals.totalPromptTokens,\n      totalCompletionTokens: totals.totalCompletionTokens,\n      totalTokens: totals.totalTokens,\n      totalPromptCostUSD: Number(totals.totalPromptCostUSD.toFixed(8)),\n      totalCompletionCostUSD: Number(totals.totalCompletionCostUSD.toFixed(8)),\n      totalCostUSD: Number(totals.totalCostUSD.toFixed(8)),\n      totalExecutionTimeMs: totals.totalExecutionTimeMs,\n      avgCostPerCall: Number(avgCostPerCall.toFixed(8)),\n      avgTokensPerCall,\n      byModel,\n      byNode,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2928,
+        528
+      ],
+      "id": "db160153-492e-4280-88f5-5c3fa6233d14",
+      "name": "Cost"
+    }
+  ],
+  "connections": {
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Calculate cost",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test id": {
+      "main": [
+        [
+          {
+            "node": "Get an execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Exc.": {
+      "main": [
+        [
+          {
+            "node": "Get an execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "model prices": {
+      "main": [
+        [
+          {
+            "node": "Check correctly defined",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If not passed": {
+      "main": [
+        [
+          {
+            "node": "Stop and Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get an execution": {
+      "main": [
+        [
+          {
+            "node": "Extract all model names",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Smart Extract LLM data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Standardize names": {
+      "main": [
+        [
+          {
+            "node": "model prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Smart Extract LLM data": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Check correctly defined": {
+      "main": [
+        [
+          {
+            "node": "If not passed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract all model names": {
+      "main": [
+        [
+          {
+            "node": "Standardize names",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate cost": {
+      "main": [
+        [
+          {
+            "node": "Cost",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateId": "7398",
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "When Exc.": [
+      {
+        "json": {
+          "execution_id": 878
+        }
+      }
+    ],
+    "Test id": [
+      {
+        "json": {
+          "execution_id": 940
+        }
+      }
+    ]
+  },
+  "versionId": "0254db72-e81f-48ce-8c42-e8ac47442380",
+  "activeVersionId": null,
+  "versionCounter": 6,
+  "triggerCount": 0,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2025-10-05T20:30:36.494Z",
+      "createdAt": "2025-10-05T20:30:36.494Z",
+      "role": "workflow:owner",
+      "workflowId": "BwdUfekGucAgJkmU",
+      "projectId": "djYaStOn9zI5EsPo",
+      "project": {
+        "updatedAt": "2025-09-15T16:43:28.477Z",
+        "createdAt": "2025-08-12T10:01:21.384Z",
+        "id": "djYaStOn9zI5EsPo",
+        "name": "alaeddine mansouri <alaeddine.mansouri@apaia-technology.io>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "4a26304c-2848-4f11-9dde-91390758dc98"
+      }
+    }
+  ]
+}

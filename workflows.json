@@ -7765,7 +7765,7 @@
     "id": "wqLtZRrarAx4CRJo",
     "name": "Sourcing_Agent_LinkedIn_validator_production",
     "description": null,
-    "active": false,
+    "active": true,
     "isArchived": false,
     "nodes": [
       {
@@ -16672,7 +16672,7 @@
     "id": "nLRVXwucw7o8stSe",
     "name": "Sourcing_Multi_Agent_After_Articles_Discovery_Pipeline",
     "description": null,
-    "active": false,
+    "active": true,
     "isArchived": false,
     "nodes": [
       {

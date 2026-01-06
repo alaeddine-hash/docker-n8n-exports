@@ -1,0 +1,1852 @@
+{
+  "name": "Sourcing_Agent_LinkedIn_validator_production",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "Company Name",
+              "type": "any"
+            },
+            {
+              "name": "Topic",
+              "type": "any"
+            },
+            {
+              "name": "Topic ID",
+              "type": "number"
+            },
+            {
+              "name": "Topic Definition",
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -10144,
+        -768
+      ],
+      "id": "a2298407-bd42-4ed8-b998-d03cebe2c84b",
+      "name": "When Executed Monitoring Tool Workflow"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ea215631-6a49-4be9-8403-7c7bd6e2a9ab",
+              "leftValue": "={{ $json.message.content.answer }}",
+              "rightValue": "=YES ",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "1fda87a5-cbeb-4b30-ba15-0ebabf062a98",
+              "leftValue": "={{ $json.message.content.answer }}",
+              "rightValue": "Yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "b5261bc1-070e-4ea6-948a-6356c0f572dc",
+              "leftValue": "={{ $json.output.answer }}",
+              "rightValue": "Yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "894dba29-0f60-4a54-8f6e-ae82f21c3cec",
+              "leftValue": "={{ $json.output.answer }}",
+              "rightValue": "=YES",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "00b859ae-bfdf-44ad-affd-49f21e0aaddc",
+              "leftValue": "={{ $json.output.answer }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3104,
+        -416
+      ],
+      "id": "909b4c33-6126-42e3-925b-2b83da41abfb",
+      "name": "If Supplier is in the Topic, Continue"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node: parse the JSON string and extract description with fallback\nreturn items.map(item => {\n  let description = '';\n  \n  // First, try to get description from the first node\n  try {\n    const parsed = JSON.parse($('Scrape Profile').first().json.stdout);\n    description = parsed.data || '';\n  } catch (e) {\n    // First node failed, leave description empty for now\n    description = '';\n  }\n  \n  // Only try the second node if the first didn't produce a description\n  if (!description) {\n    try {\n      const parsed = JSON.parse($('Scrape Profile second try').first().json.stdout);\n      description = parsed.data || '';\n    } catch (e) {\n      // Second node also failed, description remains empty\n      description = '';\n    }\n  }\n  \n  return {\n    json: {\n      description\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2848,
+        -624
+      ],
+      "id": "109a68fb-3a99-46bc-a32f-81f5694a9c30",
+      "name": "Prepare Output"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node to extract company info from LinkedIn (French & English)\n// ASYNC CHUNKED VERSION - Yields control periodically to prevent timeout\n\n// Retrieve raw stdout\nconst raw = $input.first().json.description;\n\n// Normalize to a single text string\nlet text = '';\nif (typeof raw === 'object' && raw !== null) {\n  if (raw.data && typeof raw.data === 'string') {\n    text = raw.data;\n  } else {\n    text = JSON.stringify(raw);\n  }\n} else if (typeof raw === 'string') {\n  text = raw;\n}\n\n// Configuration\nconst CHUNK_SIZE = 5000; // Smaller chunks for more frequent yielding\nconst MAX_CHUNKS_PER_FIELD = 10; // Limit chunks to search per field\n\n// Sleep function to yield control\nconst sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));\n\n// Async chunk processor with yielding\nasync function* processChunks(text, chunkSize) {\n  let position = 0;\n  \n  while (position < text.length) {\n    const end = Math.min(position + chunkSize, text.length);\n    const chunk = {\n      text: text.substring(position, end),\n      start: position,\n      end: end\n    };\n    \n    yield chunk;\n    \n    // Yield control every chunk\n    await sleep(0);\n    \n    position = end - 200; // Small overlap\n    if (position >= text.length - 200) break;\n  }\n}\n\n// Async pattern matcher\nasync function findPatternAsync(text, patterns, maxChunks = MAX_CHUNKS_PER_FIELD) {\n  const generator = processChunks(text, CHUNK_SIZE);\n  let chunksProcessed = 0;\n  \n  for await (const chunk of generator) {\n    // Check each pattern in the chunk\n    for (const regex of patterns) {\n      const match = chunk.text.match(regex);\n      if (match && match[1]) {\n        return match[1].trim();\n      }\n    }\n    \n    chunksProcessed++;\n    if (chunksProcessed >= maxChunks) {\n      break; // Limit search to prevent excessive processing\n    }\n  }\n  \n  return '';\n}\n\n// Main extraction function\nasync function extractCompanyInfo() {\n  // Company name - extract from beginning only\n  let company_name = text.substring(0, 1000);\n  company_name = company_name.replace(/[\\x00-\\x1F\\x7F-\\x9F]/g, '');\n  company_name = company_name.split(/\\s*\\|\\s*LinkedIn/i)[0]\n                             .replace(/\\s*LinkedIn[\\s\\S]*$/i, '')\n                             .trim();\n  company_name = company_name.replace(/[\\-–|,;:_\\s]+$/, '').trim();\n  if (company_name.includes(',')) {\n    company_name = company_name.split(',')[0].trim();\n  }\n\n  // Define all patterns\n  const patterns = {\n    website: [\n      /Website\\s+(https?:\\/\\/[^\\s]+)/i,\n      /Site web\\s+(https?:\\/\\/[^\\s]+)/i\n    ],\n    industry: [\n      /Industry\\s+([^\\n]{1,200}?)(?=\\s*(?:Company size|Taille de l'entreprise|$))/i,\n      /Secteur\\s+([^\\n]{1,200}?)(?=\\s*(?:Taille de l'entreprise|Company size|$))/i\n    ],\n    company_size: [\n      /Company size\\s+([^\\n]{1,100}?employee(?:s)?)/i,\n      /Taille de l'entreprise\\s+([^\\n]{1,100}?employés?)/i\n    ],\n    headquarters: [\n      /Headquarters\\s+([^\\n]{1,200}?)(?=\\s*(?:Founded|Type|Fondée|$))/i,\n      /Siège social\\s+([^\\n]{1,200}?)(?=\\s*(?:Type|Founded|Fondée|$))/i\n    ],\n    founded: [\n      /Founded\\s+(\\d{4})/i,\n      /Fondée en\\s+(\\d{4})/i\n    ],\n    locations: [\n      /Locations\\s+([^\\n]{1,300}?)(?=\\s*(?:Get directions|Obtenir l'itinéraire|$))/i,\n      /Lieux\\s+Principal\\s+([^\\n]{1,300}?)(?=\\s*(?:Obtenir l'itinéraire|Get directions|$))/i\n    ]\n  };\n\n  // Extract fields asynchronously\n  const results = {\n    company_name,\n    website: await findPatternAsync(text, patterns.website),\n    industry: await findPatternAsync(text, patterns.industry),\n    company_size: await findPatternAsync(text, patterns.company_size),\n    headquarters: await findPatternAsync(text, patterns.headquarters),\n    founded: await findPatternAsync(text, patterns.founded),\n    locations: await findPatternAsync(text, patterns.locations)\n  };\n\n  // Description requires special handling\n  const descPatterns = [\n    /About us\\s*([\\s\\S]{1,2000}?)\\s*(?:Website|Industry|Company size|Site web|Secteur|Taille de l'entreprise)/i,\n    /About\\s*([\\s\\S]{1,2000}?)\\s*(?:Website|Industry|Company size|Site web|Secteur|Taille de l'entreprise)/i,\n    /À propos\\s+([\\s\\S]{1,2000}?)(?:Site web|Secteur|Taille de l'entreprise|Website|Industry|Company size|Produits|Lieux|$)/i\n  ];\n  \n  let description = await findPatternAsync(text, descPatterns, 5);\n  if (description) {\n    description = description\n      .replace(/\\n\\n/g, ' ')\n      .replace(/\\s+/g, ' ')\n      .trim()\n      .substring(0, 1000);\n  }\n\n  results.description = description;\n\n  return results;\n}\n\n// Execute extraction\nconst extractedData = await extractCompanyInfo();\n\n// Return formatted result\nreturn [\n  {\n    json: {\n      company_name: extractedData.company_name,\n      website: extractedData.website === '' ? null : extractedData.website,\n      industry: extractedData.industry === '' ? null : extractedData.industry,\n      company_size: extractedData.company_size === '' ? null : extractedData.company_size,\n      headquarters: extractedData.headquarters === '' ? null : extractedData.headquarters,\n      founded: extractedData.founded === '' ? null : extractedData.founded,\n      locations: extractedData.locations === '' ? null : extractedData.locations,\n      description: extractedData.description === '' ? null : extractedData.description\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2656,
+        -624
+      ],
+      "id": "419ed10c-e3a2-4b91-b5cd-be3688805ae1",
+      "name": "Extract Information"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=- Company name: {{ $('Extract Information').item.json.company_name  }}\n- Domain: {{ $('When Executed Monitoring Tool Workflow').item.json.Topic }}\n- Domain definition: {{ $('When Executed Monitoring Tool Workflow').item.json['Topic Definition'] }}\n-linkedin Profile Content  :\n{{ $('HTTP Request1').item.json.data }}\n\nor\n{{ $('Extract Information').item.json.description }}\n\n",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You will receive: \n- Company name \n- LinkedIn profile  Content   \n###Your task:\n1. Generate a **brief description** (max 40 words) that merges the most relevant details from the LinkedIn profile  Content. \n2. Extract the **headquarters** if explicitly mentioned in the LinkedIn profile  Content.  \nTo respond To :        \n- \"european_based\": \"yes\" if HQ is in Europe, \"no\" if outside Europe, \"unknown\" if no HQ info is given. \n- \"quote\": the exact supporting quote or null  \n \n###Output: Return **only one valid JSON object** with the following fields: \n- \"brief_description\": your generated short description \n- \"european_based\": \"yes\" | \"no\" | \"unknown\" \n- \"quote\": the exact supporting quote or null\n\nexample : a JSON  like :\n{\n  \"brief_description\": \"ExampleSoft is a European technology company specializing in AI-powered analytics and cloud solutions. It helps retailers and manufacturers improve decision-making, optimize operations, and drive growth through advanced data insights and automation tools.\",\n  \"european_based\": \"yes\",\n  \"quote\": \"headquartered in Berlin, Germany\"\n}\n\n**Output rules**  \n- **Return ONLY the JSON —no commentary, no Markdown, no extra keys.\n** - If a field isn’t present, set its value to `null` (do NOT omit the key). \n- Preserve accents, quotes, emojis, punctuation, and original line breaks inside string values. \n- Escape any internal quotation marks that would break valid JSON.    \nFollow these instructions exactly every time."
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        -1600,
+        -608
+      ],
+      "id": "082e1167-09fa-4a31-857d-bd1e848273f4",
+      "name": "Description Generator Agent",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Function Node: extract description with proper handling\n\nreturn items.map(item => {\n  let description = '';\n  const inputData = $input.first().json;\n  \n  // Check if we have a text field\n  if (inputData.text) {\n    const text = inputData.text;\n    \n    // Check if text is already a string (not JSON)\n    if (typeof text === 'string') {\n      // First, try to parse it as JSON in case it's a JSON string\n      try {\n        const parsed = JSON.parse(text);\n        // If it's JSON, try to get description or brief_description\n        description = parsed.description || parsed.brief_description || '';\n      } catch (e) {\n        // Not JSON - use the text directly as description\n        description = text;\n      }\n    } else if (typeof text === 'object') {\n      // If text is already an object, extract description\n      description = text.description || text.brief_description || '';\n    }\n  }\n  \n  // If we still have no description, try the fallback\n  if (!description) {\n    try {\n      // Try to get from Extract Information node\n      description = $('Extract Information').first().json.description || '';\n    } catch (e) {\n      // Node doesn't exist or has no data\n      description = '';\n    }\n  }\n  \n  return {\n    json: { \n      description: description\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1216,
+        -752
+      ],
+      "id": "813d01f8-868d-42e4-871e-a0e33b308033",
+      "name": "Preparing Output Description"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": {
+          "__rl": true,
+          "value": "Analysis",
+          "mode": "list",
+          "cachedResultName": "Analysis"
+        },
+        "limit": 1,
+        "where": {
+          "values": [
+            {
+              "column": "topic_id",
+              "value": "={{ $('When Executed Monitoring Tool Workflow').item.json[\"Topic ID\"] }}"
+            },
+            {
+              "column": "Supplier",
+              "condition": "LIKE",
+              "value": "=%{{ $json.firstWordCompanyName }}%"
+            },
+            {
+              "column": "Company Name",
+              "condition": "LIKE",
+              "value": "=%{{ $json.firstWordCompanyName }}%"
+            }
+          ]
+        },
+        "combineConditions": "OR",
+        "options": {
+          "detailedOutput": true
+        }
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -9232,
+        -1168
+      ],
+      "id": "fa455182-af45-4b42-89d3-575c6ee0e570",
+      "name": "Check Name in Analysis Table",
+      "credentials": {
+        "mySql": {
+          "id": "vLi6G0fVdwTGtEXv",
+          "name": "MySQL account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a23014e5-6555-45eb-87f5-d96544276404",
+              "leftValue": "={{ $json.data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -8896,
+        -1040
+      ],
+      "id": "3192d305-23ee-4f66-946a-aed37ebfbd39",
+      "name": "If Supplier Does Not Exist, Insert New Supplier"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -368,
+        -144
+      ],
+      "id": "a52e976e-d747-4283-9b25-b6f38be6dca0",
+      "name": "If Error, Break"
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "Analysis",
+          "mode": "list",
+          "cachedResultName": "Analysis"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "topic_id",
+              "value": "={{ $('When Executed Monitoring Tool Workflow').item.json['Topic ID'] }}"
+            },
+            {
+              "column": "Supplier",
+              "value": "={{ $('AI Agent Supplier Web Search').item.json.output.product_name }}"
+            },
+            {
+              "column": "Founded",
+              "value": "={{ $('Profile Attributes extractor').item.json.founded }}"
+            },
+            {
+              "column": "Company Size",
+              "value": "={{ $('Profile Attributes extractor').item.json.company_size }}"
+            },
+            {
+              "column": "Description",
+              "value": "={{ $('Description Generator Agent').item.json.output.brief_description }}"
+            },
+            {
+              "column": "Headquarters",
+              "value": "={{ $('Profile Attributes extractor').item.json.headquarters }}"
+            },
+            {
+              "column": "Locations",
+              "value": "={{ $('Profile Attributes extractor').item.json.locations }}"
+            },
+            {
+              "column": "Website",
+              "value": "={{ $('Profile Attributes extractor').item.json.website }}"
+            },
+            {
+              "column": "LinkedIn",
+              "value": "={{ $('LinkedIn Link Extractor').item.json.output.linkedin_url }}"
+            },
+            {
+              "column": "cloud_tenant",
+              "value": "={{ $('AI Agent Supplier Web Search').item.json.output.cloud_tenant }}"
+            },
+            {
+              "column": "have_api",
+              "value": "={{ $('AI Agent Supplier Web Search').item.json.output.has_api }}"
+            },
+            {
+              "column": "on_premises",
+              "value": "={{ $('AI Agent Supplier Web Search').item.json.output.on_premises }}"
+            },
+            {
+              "column": "european_based",
+              "value": "={{ $('Description Generator Agent').item.json.output.european_based }}"
+            },
+            {
+              "column": "gdpr_eu_compliance",
+              "value": "={{ $('AI Agent Supplier Web Search').item.json.output.gdpr_compliant }}"
+            },
+            {
+              "column": "Company Name",
+              "value": "={{ $('AI Agent Supplier Web Search').item.json.output.company_name }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        608,
+        -704
+      ],
+      "id": "ad4b2187-1b57-47ef-b51f-2f34a373bc56",
+      "name": "Insert New Supplier",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "vLi6G0fVdwTGtEXv",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const productName =\n  $('AI Agent Supplier Web Search').first()?.json?.output?.product_name ?? null;\n\nreturn items.map(inputItem => {\n  inputItem.json.item = productName;\n  return inputItem;\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        -688
+      ],
+      "id": "013509e7-a99b-4610-b136-f8267a916a65",
+      "name": "Send New Supplier's Answer"
+    },
+    {
+      "parameters": {
+        "jsCode": "// This Function node script iterates over each incoming item,\n// creates a deep copy of its JSON content, and saves it as a new property called \"item\".\n\nreturn items.map(inputItem => {\n  // Create a deep copy of the item's JSON data.\n  const copiedItem = JSON.parse(JSON.stringify(inputItem.json));\n\n  // Store the copy in a new property named \"item\".\n  // You can change the property name if needed.\n  inputItem.json.item = $input.first().json.data[0].Supplier;\n\n  // Return the modified item.\n  return inputItem;\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -8256,
+        -1200
+      ],
+      "id": "035fa183-822e-4af9-ab53-ff8f712bc629",
+      "name": "Send Old Supplier's Answer"
+    },
+    {
+      "parameters": {
+        "content": "## Linkedin Profile Searcher & Linkedin Profile Scraper",
+        "height": 260,
+        "width": 1680,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -8800,
+        -1504
+      ],
+      "id": "118132cd-b730-4cc1-a808-7ef480b9950c",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## Validator Agent & Information Extractor",
+        "height": 260,
+        "width": 1560
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -6720,
+        -1504
+      ],
+      "id": "d3d58fbf-05dd-450c-80aa-2b678b36db32",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://google.serper.dev/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-KEY",
+              "value": "7310d6928eda087e472b3f27400c50bb40304fcb"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"q\": \"{{ $('reffine the google query search').item.json.originalCompanyName }} linkedin\",\n  \"num\": 20,\n  \"engine\": \"google\",\n  \"gl\": \"fr\",\n  \"hl\": \"fr\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -8576,
+        -720
+      ],
+      "id": "9d0d51a6-3a7c-4b07-ac2d-87db49880206",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Code Node - Remove ALL Special Characters and Hidden Characters\nconst results = [];\nfor (const item of $input.all()) {\n  const companyName = item.json[\"Company Name\"];\n  const topic = item.json[\"Topic\"];\n  const topicId = item.json[\"Topic ID\"];\n  \n  // Function to clean text - removes ALL special characters and control characters\n  function cleanText(text) {\n    // First, remove all control characters (invisible characters)\n    text = text.replace(/[\\x00-\\x1F\\x7F-\\x9F]/g, '');\n    \n    // Replace French accented characters\n    text = text.replace(/[àáâãäå]/g, 'a')\n               .replace(/[ÀÁÂÃÄÅ]/g, 'A')\n               .replace(/[èéêë]/g, 'e')\n               .replace(/[ÈÉÊË]/g, 'E')\n               .replace(/[ìíîï]/g, 'i')\n               .replace(/[ÌÍÎÏ]/g, 'I')\n               .replace(/[òóôõö]/g, 'o')\n               .replace(/[ÒÓÔÕÖ]/g, 'O')\n               .replace(/[ùúûü]/g, 'u')\n               .replace(/[ÙÚÛÜ]/g, 'U')\n               .replace(/[ýÿ]/g, 'y')\n               .replace(/[ÝŸ]/g, 'Y')\n               .replace(/[ñ]/g, 'n')\n               .replace(/[Ñ]/g, 'N')\n               .replace(/[ç]/g, 'c')\n               .replace(/[Ç]/g, 'C')\n               .replace(/[œ]/g, 'oe')\n               .replace(/[Œ]/g, 'OE')\n               .replace(/[æ]/g, 'ae')\n               .replace(/[Æ]/g, 'AE');\n    \n    // Remove any other special characters except letters, numbers, spaces\n    text = text.replace(/[^a-zA-Z0-9\\s]/g, '');\n    \n    // Replace multiple spaces with single space\n    text = text.replace(/\\s+/g, ' ').trim();\n    \n    return text;\n  }\n  \n  // Function to remove ALL spaces from company name\n  function removeAllSpaces(text) {\n    // Clean first\n    text = cleanText(text);\n    // Then remove ALL spaces\n    text = text.replace(/\\s/g, '');\n    return text;\n  }\n  \n  // Function to get first word only\n  function getFirstWord(text) {\n    // Clean first\n    text = cleanText(text);\n    // Split by spaces and get first word\n    const firstWord = text.split(' ')[0];\n    return firstWord;\n  }\n  \n  // Clean the company name and remove spaces\n  const cleanCompanyNameNoSpaces = removeAllSpaces(companyName);\n  \n  // Get first word only\n  const firstWordCompanyName = getFirstWord(companyName);\n  \n  // Create search term\n  const searchTerm = cleanCompanyNameNoSpaces + \" linkedin\";\n  \n  // URL encode for safety\n  const encodedSearch = encodeURIComponent(searchTerm);\n  \n  // Build the complete URL\n  const fullUrl = `https://google.serper.dev/search?q=${encodedSearch}&num=10`;\n  \n  results.push({\n    json: {\n      // Original data\n      originalCompanyName: companyName,\n      originalTopic: topic,\n      topicId: topicId,\n      \n      // Cleaned data\n      cleanCompanyName: cleanCompanyNameNoSpaces,\n      firstWordCompanyName: firstWordCompanyName,  // NEW ATTRIBUTE\n      searchTerm: searchTerm,\n      \n      // Ready-to-use URL\n      fullUrl: fullUrl\n    }\n  });\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -9536,
+        -976
+      ],
+      "id": "743b42b4-5afc-44ca-8892-1870ab7eac63",
+      "name": "reffine the google query search"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8bbaf454-155c-4792-ad65-41286f85f4f7",
+              "leftValue": "={{ $json.company_name }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "5cd817ba-0a75-4ea3-b85c-5fdcebef77a3",
+              "leftValue": "={{ $json.website }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "f1eb19a5-294a-43a8-af4b-fbe38dd7b8ca",
+              "leftValue": "={{ $json.website }}",
+              "rightValue": "null",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "b190c80a-8d53-44f7-ba46-222225f97630",
+              "leftValue": "={{ $json.website }}",
+              "rightValue": "null",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": false
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1872,
+        -624
+      ],
+      "id": "8adb4c8d-94e7-4b48-8eb9-485d0968cc52",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "48d921f2-ba44-451f-92bb-956f63d6b1c2",
+              "leftValue": "={{ $json.output.linkedin_url }}",
+              "rightValue": "null",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -6400,
+        -960
+      ],
+      "id": "01aa288b-b13c-4437-b332-01b6b967de19",
+      "name": "extract the good profile"
+    },
+    {
+      "parameters": {
+        "fromEmail": "contact@apaia-technology.io",
+        "toEmail": "alaeddine.mansouri@apaia-technology.io",
+        "subject": "=No LinkedIn page found -  {{ $('When Executed Monitoring Tool Workflow').item.json[\"Company Name\"] }} -",
+        "emailFormat": "text",
+        "text": "=No LinkedIn page found.  \n{{ $('When Executed Monitoring Tool Workflow').item.json[\"Company Name\"] }}\n\n{{ $('When Executed Monitoring Tool Workflow').item.json.Topic }}\n\n{{ $('When Executed Monitoring Tool Workflow').item.json[\"Topic ID\"] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        -4000,
+        -1104
+      ],
+      "id": "e3cabcc7-f85c-49b2-9610-55134371be71",
+      "name": "Send Email",
+      "webhookId": "3ac7d189-a716-4152-b0d6-8fd852b6d21b",
+      "credentials": {
+        "smtp": {
+          "id": "9YQATy71v6spfX1d",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"answer\": {\n\t\t\t\"type\": \"string\"\n\t\t},\n      \"justification\": {\n\t\t\t\"type\": \"string\"\n\t\t},\n      \"quote\": {\n\t\t\t\"type\": \"string\"\n\t\t}\n      \n\t\t}\n\t\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -3904,
+        -128
+      ],
+      "id": "9edf2fbf-4faf-4c10-a00f-10feb8ed7ece",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.1",
+          "mode": "list",
+          "cachedResultName": "gpt-5.1"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -4656,
+        -128
+      ],
+      "id": "91e0fcea-60f4-4c22-8acc-51751a291e47",
+      "name": "LLM",
+      "credentials": {
+        "openAiApi": {
+          "id": "rmudht9sL6cgETQK",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Search in Tavily \nyou must use it only for 5 times maximum",
+        "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Query', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        -4336,
+        -128
+      ],
+      "id": "85812b9e-bfe6-49b0-8b0f-a67f4805a72c",
+      "name": "Search in Tavily Tool",
+      "credentials": {
+        "tavilyApi": {
+          "id": "kSJwk0KhzIOSCCO3",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('When Executed Monitoring Tool Workflow').item.json['Company Name'] }}-{{ $('When Executed Monitoring Tool Workflow').item.json.Topic }}-hereWeAre-latest-new-for-apaia-hello-yes\n-{{ $now.toFormat('yyyy-LL-dd_HH') }}-yu\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -4528,
+        -144
+      ],
+      "id": "9f5152fd-83ef-43fb-a819-63ed6f954618",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.1",
+          "mode": "list",
+          "cachedResultName": "gpt-5.1"
+        },
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -880,
+        -960
+      ],
+      "id": "832bb5aa-27f4-4399-8322-cbeaeee7f1a1",
+      "name": "GPT-5",
+      "credentials": {
+        "openAiApi": {
+          "id": "rmudht9sL6cgETQK",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('When Executed Monitoring Tool Workflow').item.json['Company Name'] }}-{{ $('When Executed Monitoring Tool Workflow').item.json.Topic }}-hereWeAre-latest-now-new-for-apaia-yes-{{ $now.toFormat('yyyy-LL-dd_HH') }}-yu",
+        "contextWindowLength": 20
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -752,
+        -944
+      ],
+      "id": "00fcb267-9cc6-4c3d-af8c-9d48a1fb4f15",
+      "name": "Memory"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Search in Tavily\nyou must use it only for 5 times maximum",
+        "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Query', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        -640,
+        -944
+      ],
+      "id": "290a6e3a-5090-477c-be0e-da85d53699bf",
+      "name": "Search",
+      "credentials": {
+        "tavilyApi": {
+          "id": "kSJwk0KhzIOSCCO3",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n      \"company_name\":\n\"String\",\n\t\t\"product_name\": \"String\",\n  \"gdpr_compliant\": \"String\",\n  \"gdpr_quote\": \"String\",\n  \"gdpr_source\": \"URL\",\n  \"cloud_tenant\": \"String\",\n  \"cloud_tenant_quote\": \"String\",\n  \"cloud_tenant_source\": \"URL\",\n  \"has_api\": \"String\",\n  \"has_api_quote\": \"String\",\n  \"has_api_source\": \"URL\",\n  \"on_premises\": \"String\",\n  \"on_premises_quote\": \"String\",\n  \"on_premises_source\": \"URL\"\n\t\t\n\t}\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -368,
+        -848
+      ],
+      "id": "8565b928-9eb0-4e28-a595-0d2c5d9ec5d1",
+      "name": "Structured Output Parser *"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"brief_description\": \"ExampleSoft is a European technology company specializing in AI-powered analytics and cloud solutions. It helps retailers and manufacturers improve decision-making, optimize operations, and drive growth through advanced data insights and automation tools.\",\n  \"european_based\": \"yes\",\n  \"quote\": \"headquartered in Berlin, Germany\"\n}\n",
+        "autoFix": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -1424,
+        -400
+      ],
+      "id": "67934183-b0fb-4fb9-853e-b829f8510aef",
+      "name": "Structured Output Parser1"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": {
+          "__rl": true,
+          "value": "Analysis",
+          "mode": "list",
+          "cachedResultName": "Analysis"
+        },
+        "limit": 1,
+        "where": {
+          "values": [
+            {
+              "column": "topic_id",
+              "value": "={{ $('When Executed Monitoring Tool Workflow').item.json['Topic ID'] }}"
+            },
+            {
+              "column": "Supplier",
+              "condition": "LIKE",
+              "value": "=%{{ $json.output.product_name }}%"
+            },
+            {
+              "column": "Company Name",
+              "condition": "LIKE",
+              "value": "=%{{ $json.output.company_name }}%"
+            }
+          ]
+        },
+        "options": {
+          "detailedOutput": true
+        }
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        32,
+        -864
+      ],
+      "id": "6c83ac64-0349-4a9f-93f9-b58d3a10a7bd",
+      "name": "Check Name in Analysis Table1",
+      "credentials": {
+        "mySql": {
+          "id": "vLi6G0fVdwTGtEXv",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a23014e5-6555-45eb-87f5-d96544276404",
+              "leftValue": "={{ $json.data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        272,
+        -592
+      ],
+      "id": "ba359dc5-01a5-43c9-a7e0-78e997b6d770",
+      "name": "If Supplier Does Not Exist, Insert New Supplier1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const supplierName =\n  $('AI Agent Supplier Web Search').first()?.json?.output?.product_name\n  ?? $('AI Agent Supplier Web Search').first()?.json?.output?.product?.product_name\n  ?? null;\n\nreturn items.map((item) => {\n  item.json.item = supplierName;   // or rename to product_name\n  return item;\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        -176
+      ],
+      "id": "a7fa6786-dfc4-48b2-b020-f77d6c546734",
+      "name": "Send Old Supplier's Answer1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.1",
+          "mode": "list",
+          "cachedResultName": "gpt-5.1"
+        },
+        "options": {
+          "responseFormat": "json_object"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -7808,
+        -672
+      ],
+      "id": "71e41da5-9eeb-4f3c-9ad1-13e8bc63d66c",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "rmudht9sL6cgETQK",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"linkedin_url\": {\n\t\t\t\"type\": \"string\"\n\t\t}\n\t\t\t}\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -7392,
+        -704
+      ],
+      "id": "7c420946-c54d-49f1-a763-826ca7458b47",
+      "name": "Structured Output Parser2"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "\n{\n\"company_name\": \"ansarada\",\n\"website\": \n\"http://www.ansarada.com\",\n\"industry\": \n\"Software Development\",\n\"company_size\": \n\"51-200 employees\",\n\"headquarters\": \n\"The Rocks, Sydney, NSW\",\n\"founded\": \n\"2005\",\n\"locations\": \n\"Primary Level 2 80 George Street The Rocks, Sydney, NSW 2000, AU • 215 \",\n\"description\": \n\"generate a description for the supplier\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -2176,
+        -656
+      ],
+      "id": "5a24591f-84c2-4fe4-b1e1-72998e38a6fd",
+      "name": "Structured Output Parser3"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=raw textual content of the company profile :  {{ $('HTTP Request1').item.json.data }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are a precise data-extraction assistant.  \nYour only job is to read the raw textual content of descreption for a  company profile that the user supplies  and transform it into a JSON  like :\n\n{     \"company_name\": \"string\",     \"website\": \"string | null\",     \"industry\": \"string | null\",     \"company_size\": \"string | null   (, e.g. \"11-50 employees\")\",     \"headquarters\": \"string | null\",     \"founded\": \"integer| null   (4-digit year only if you dont' find it you can take 0000)\",     \"locations\": \"string | null   (concatenate every location block exactly as it appears, keep accents)\",     \"description\": \"string          (full “About” paragraph including line breaks)\"   }\n\n**Output rules**  \n- **Return ONLY the JSON —no commentary, no Markdown, no extra keys.\n** - If a field isn’t present, set its value to `null` (do NOT omit the key). \n- Preserve accents, quotes, emojis, punctuation, and original line breaks inside string values. \n- Escape any internal quotation marks that would break valid JSON.    \nFollow these instructions exactly every time."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        -2320,
+        -864
+      ],
+      "id": "4efffbcf-76d7-446b-9eab-e6622446e100",
+      "name": "Profile Attributes extractor",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.1",
+          "mode": "list",
+          "cachedResultName": "gpt-5.1"
+        },
+        "options": {
+          "responseFormat": "json_object",
+          "timeout": 600000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -2416,
+        -640
+      ],
+      "id": "e7154f18-dfd1-4489-9897-f123255729c8",
+      "name": "GPT-",
+      "credentials": {
+        "openAiApi": {
+          "id": "rmudht9sL6cgETQK",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.1",
+          "mode": "list",
+          "cachedResultName": "gpt-5.1"
+        },
+        "options": {
+          "responseFormat": "json_object"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -1568,
+        -384
+      ],
+      "id": "b7e0b70d-2010-42e3-a8fb-f6ecea279019",
+      "name": "GPT-7",
+      "credentials": {
+        "openAiApi": {
+          "id": "rmudht9sL6cgETQK",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "langfuseMetadata": {},
+        "model": {
+          "__rl": true,
+          "value": "deepseek/deepseek-v3.1-terminus",
+          "mode": "list",
+          "cachedResultName": "deepseek/deepseek-v3.1-terminus"
+        },
+        "options": {
+          "responseFormat": "text",
+          "timeout": 600000
+        }
+      },
+      "type": "n8n-nodes-openai-langfuse.lmChatOpenAiLangfuse",
+      "typeVersion": 3,
+      "position": [
+        -1104,
+        -976
+      ],
+      "id": "2c33a91a-09b8-4695-ae95-9ae84385e4be",
+      "name": "OpenAI Chat Model with Langfuse",
+      "credentials": {
+        "openAiApiWithLangfuseApi": {
+          "id": "Yq0KbReskPDmYr8S",
+          "name": "openAi With Langfuse account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "langfuseMetadata": {},
+        "model": {
+          "__rl": true,
+          "value": "deepseek/deepseek-v3.1-terminus",
+          "mode": "list",
+          "cachedResultName": "deepseek/deepseek-v3.1-terminus"
+        },
+        "options": {
+          "responseFormat": "json_object"
+        }
+      },
+      "type": "n8n-nodes-openai-langfuse.lmChatOpenAiLangfuse",
+      "typeVersion": 3,
+      "position": [
+        -1696,
+        -384
+      ],
+      "id": "573cda2e-0d98-4bcb-85aa-e4df1fd2ca69",
+      "name": "OpenAI Chat Model with Langfuse1",
+      "credentials": {
+        "openAiApiWithLangfuseApi": {
+          "id": "Yq0KbReskPDmYr8S",
+          "name": "openAi With Langfuse account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "langfuseMetadata": {},
+        "model": {
+          "__rl": true,
+          "value": "deepseek/deepseek-v3.1-terminus",
+          "mode": "list",
+          "cachedResultName": "deepseek/deepseek-v3.1-terminus"
+        },
+        "options": {
+          "responseFormat": "json_object"
+        }
+      },
+      "type": "n8n-nodes-openai-langfuse.lmChatOpenAiLangfuse",
+      "typeVersion": 3,
+      "position": [
+        -2304,
+        -640
+      ],
+      "id": "b0f1d001-92d6-4624-b144-ff090806c2b5",
+      "name": "OpenAI Chat Model with Langfuse2",
+      "credentials": {
+        "openAiApiWithLangfuseApi": {
+          "id": "Yq0KbReskPDmYr8S",
+          "name": "openAi With Langfuse account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "langfuseMetadata": {},
+        "model": {
+          "__rl": true,
+          "value": "deepseek/deepseek-v3.1-terminus",
+          "mode": "list",
+          "cachedResultName": "deepseek/deepseek-v3.1-terminus"
+        },
+        "options": {
+          "responseFormat": "text"
+        }
+      },
+      "type": "n8n-nodes-openai-langfuse.lmChatOpenAiLangfuse",
+      "typeVersion": 3,
+      "position": [
+        -5040,
+        288
+      ],
+      "id": "5b78474d-0beb-4bf9-a21a-0f7a921dd73b",
+      "name": "OpenAI Chat Model with Langfuse3",
+      "credentials": {
+        "openAiApiWithLangfuseApi": {
+          "id": "Yq0KbReskPDmYr8S",
+          "name": "openAi With Langfuse account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "langfuseMetadata": {},
+        "model": {
+          "__rl": true,
+          "value": "deepseek/deepseek-v3.1-terminus",
+          "mode": "list",
+          "cachedResultName": "deepseek/deepseek-v3.1-terminus"
+        },
+        "options": {
+          "responseFormat": "json_object"
+        }
+      },
+      "type": "n8n-nodes-openai-langfuse.lmChatOpenAiLangfuse",
+      "typeVersion": 3,
+      "position": [
+        -8096,
+        -768
+      ],
+      "id": "2c0f57fd-7f72-499a-bc61-344c3d695e6b",
+      "name": "OpenAI Chat Model with Langfuse4",
+      "credentials": {
+        "openAiApiWithLangfuseApi": {
+          "id": "Yq0KbReskPDmYr8S",
+          "name": "openAi With Langfuse account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5.1",
+        "options": {
+          "responseFormat": "json_object"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -7648,
+        -768
+      ],
+      "id": "e16e8d64-9edf-403f-b035-b660f40ee5ee",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "fe1xaia17r7XZ3AK",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-sonnet-4.5",
+        "options": {
+          "responseFormat": "json_object"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -4880,
+        288
+      ],
+      "id": "3300ba6d-8016-4c70-acde-2f70e1dc3c23",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "fe1xaia17r7XZ3AK",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-2.5-pro",
+        "options": {
+          "responseFormat": "json_object"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -7936,
+        -768
+      ],
+      "id": "90eabf8a-879a-49c2-b351-fd6dce7fef3d",
+      "name": "OpenRouter Chat Model7",
+      "credentials": {
+        "openRouterApi": {
+          "id": "fe1xaia17r7XZ3AK",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.scraptio.com/scrape",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"{{ $json.output.linkedin_url }}\",\n\"api_key\": \"5upFmk5m1pPREPuk114Zz5PJ7FVXzRn9vtPghZt1xk3fgU9NwgNCBJx5Y192YDOV\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -6128,
+        -848
+      ],
+      "id": "6e4fe7ab-8883-4f3f-a4fc-563b3e257455",
+      "name": "HTTP Request1",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You select a LinkedIn *organization* URL (company, service, or product/showcase) (that uses ai) from provided search results.\n\nMust : focus and use the company name of the company don't use aptivio in the place of attivio for example, and you don't take microsoft research in the place of microsoft search is not the same\nbe careful about the name is very important \n\n\nInputs:\ncompany_name: {{ $('reffine the google query search').item.json.originalCompanyName }}\ndomain: {{ $('reffine the google query search').item.json.originalTopic }}\n\nsearch_results_json: \n{{ $json.organic[0].title }}\n{{ $json.organic[0].link }}\n{{ $json.organic[0].snippet }}\n{{ $json.organic[1].title }}\n{{ $json.organic[1].link }}\n{{ $json.organic[1].snippet }}\n{{ $json.organic[2].title }}\n{{ $json.organic[2].link }}\n{{ $json.organic[2].snippet }}\n{{ $json.organic[3].title }}\n{{ $json.organic[3].link }}\n{{ $json.organic[3].snippet }}\n{{ $json.organic[4].title }}\n{{ $json.organic[4].link }}\n{{ $json.organic[4].snippet }}\n{{ $json.organic[5].title }}\n{{ $json.organic[5].link }}\n{{ $json.organic[5].snippet }}\n{{ $json.organic[6].title }}\n{{ $json.organic[6].link }}\n{{ $json.organic[6].snippet }}\n{{ $json.organic[7].title }}\n{{ $json.organic[7].link }}\n{{ $json.organic[7].snippet }}\n{{ $json.organic[8].title }}\n{{ $json.organic[8].link }}\n{{ $json.organic[8].snippet }}\n{{ $json.organic[9].title }}\n{{ $json.organic[9].link }}\n{{ $json.organic[9].snippet }}\nInstructions:\n1. Parse search_results_json (array OR object w/ items[]). Examine every result's title, link, snippet.\n2. Consider ONLY links whose domain ends with \"linkedin.com\" (any subdomain).\n3. Acceptable LinkedIn paths (org-level only): must include \"/company/\" OR \"/showcase/\" (product) OR clearly represent an org-level service page under a company. \n4. REJECT links containing any of: \"/in/\", \"/school/\", \"/jobs/\", \"/learning/\", \"/pulse/\", \"/posts/\", \"/feed/\", \"/events/\", query search redirect URLs that are not a company/product org page.\n5. Among acceptable candidates, choose the one that best matches company_name (normalize case, strip punctuation; allow close variants) and, if tie, the one whose title/snippet best aligns with domain keywords.\n6. Clean the URL: drop tracking params (?utm=...), keep stable canonical path.\n7. If no acceptable candidate, output null.\n8.reject chatgpt, claude, deepseek or any llm provider\n\nJson : Output format (VALID JSON ONLY, no extra text):\n\n{\"linkedin_url\": \"<url-or-null>\"}\n\nIf none, output:\n\n{\"linkedin_url\": \"null\"}\n\nBefore responding, self-check that the JSON parses (no trailing commas, double quotes on strings, null unquoted).\nReturn ONLY the JSON object.",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        -7744,
+        -1056
+      ],
+      "id": "4214e167-1172-43a9-944c-23beb175b4aa",
+      "name": "LinkedIn Link Extractor"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=•\tsupplier name : {{ $('When Executed Monitoring Tool Workflow').item.json['Company Name'] }}\n•\tTopic_name : {{ $('When Executed Monitoring Tool Workflow').item.json.Topic }}\n•\tTopic definition : {{ $('When Executed Monitoring Tool Workflow').item.json['Topic Definition'] }}\n•    LinkedIn profile content (or other extracted descriptions) : {{ $('HTTP Request1').item.json.data }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are an expert  analyst specialized in evaluating whether company products or solutions support each of the following features:\n\n1.\tGDPR compliance\n2.\tAPI support\n3.\tCloud-tenant (multi-tenant cloud) deployment\n4.\tOn-premises deployment\n \n Your task is to analyze LinkedIn profile content, official website pages and, if necessary, external authoritative sources, to provide a precise assessment regarding the features listed above.\n \nInput:\n•             Supplier name\n•             Topic_name\n•             Topic definition\n•             LinkedIn profile content\n\nCRITICAL RULES:\n- You have a MAXIMUM of 5 iterations to complete the task\n- After 5 attempts, you MUST provide your best answer with available information\n- Always track your iteration count mentally\n- On your 5th iteration, conclude with a final answer regardless of completeness\n- Never say \"I need more iterations\" - work within the limit\n\nIf you cannot complete the task in 5 iterations:\n1. Summarize what you've accomplished\n2. Provide the best possible answer with available data\n3. Clearly state what's missing (if anything)\n\n \n###Thanks to the previous analysis You know that the  company provides directly solutions/services/products for a specific Topic : Topic definition.\n\n\nInstructions:\n•\tUse external search tools (e.g., Tavily, Extract)  to explore the product’s official pages (product description, documentation, architecture pages, legal/compliance pages).\n###RULE : you don't exceed 3 times using the search tools\n•\tSearch for explicit statements or credible evidence regarding each feature (keywords such as “GDPR”, “API”, “REST”, “multi-tenant cloud”, “cloud tenant”, “on-premises”, “self-hosted”, etc.).\n•\tIf evidence clearly indicates support, mark that feature “Yes”, otherwise “No”.\n•\tUse the most authoritative sources available on the site (e.g. official docs, compliance page).\n \n \n###CRITICAL DIFFERENTIATION RULE:\n\nYou MUST clearly differentiate between the company name and the product name. Even if they are identical, both attributes must be explicitly included in the output. \nThe company is the organization that creates/provides the product; \nthe product is the specific solution/service being evaluated.\n \nOutput Format: Produce a single JSON object (not an array) with the following keys:\n \n \n{\n    \"company_name\": \"Provide the exact company name\",\n\n  \"product_name\": \"Provide the product name in 1 words only (like you find it in the web site).Do not include parentheses or domain prefix.\",\n\n  \"gdpr_support\": \"Yes\" | \"No\",\n  \"gdpr_quote\": \"exact supporting quote or null\",\n\"gdpr_source\": \"URL of the supporting evidence or null\"\n \n  \"api_support\": \"Yes\" | \"No\",\n  \"api_quote\": \"exact supporting quote or null\",\n \"api_source\": \"URL of the supporting evidence or null\"\n \n  \"cloud_tenant_support\": \"Yes\" | \"No\",\n  \"cloud_tenant_quote\": \"exact supporting quote or null\",\n  “cloud_tenant_source\": \"URL of the supporting evidence or null\"\n \n  \"on_premises_support\": \"Yes\" | \"No\"\n  \"on_premises_quote\": \"exact supporting quote or null\",\n  \"on_premises_source\": \"URL of the supporting evidence or null\"\n \n}\n \n \n Guiding Principles:\n•Be precise, factual, and objective.\n•Always use direct quotes when possible.\n•Avoid assumptions: if compliance cannot be verified, return \"unknown\".\n•Provide sources for all evidence retrieved, even from external searches.\n\n###Always include both company_name and product_name, even if they are the same value.\n\n\n###FINAL BEHAVIOR:\n- After completing searches (or earlier if data is conclusive), immediately return the JSON above and nothing else.\n- Do not output progress messages or notes.\n\nBegin execution using the 3-search strategy above and produce the JSON result.\n\nIf you cannot complete the task in 5 iterations:\n1. Summarize what you've accomplished\n2. Provide the best possible answer with available data\n3. Clearly state what's missing (if anything)"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -736,
+        -1296
+      ],
+      "id": "2c8605fa-57d8-45f3-88c8-e132259ff6a1",
+      "name": "AI Agent Supplier Web Search"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Extract in Tavily\nyou must use it only for 5 times \nmaximum",
+        "resource": "extract",
+        "urls": [
+          "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('urls0_URLs', ``, 'string') }}"
+        ],
+        "options": {}
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        -528,
+        -960
+      ],
+      "id": "af319220-26ab-4c0b-9c6c-37ad787d9715",
+      "name": "Extract",
+      "credentials": {
+        "tavilyApi": {
+          "id": "kSJwk0KhzIOSCCO3",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=## Input Variables\nCompany Name:  {{ $('reffine the google query search').item.json.originalCompanyName }}\n\nTopic Name: {{ $('When Executed Monitoring Tool Workflow').item.json.Topic }}\n\nTopic Definition : {{ $('When Executed Monitoring Tool Workflow').item.json['Topic Definition'] }}\n\n\n\n",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a strict binary classifier. \nYour sole task is to determine if a company directly provides solutions/services/products for a specific topic. \nProcede as follow to do so:\nCollect the content according to the instruction “data to be collected below – step 1”  \nRead all inputs carefully : \n  ## company name, Topic Name, Topic Definition \n  ## the content that you have collected according to the instruction “data to be collected below – step 1”\nApply Classification rules\nConclude according to conclusion rules below with 80% certainty threshold\nIf certainty threshold is not reached, collect the content according to the instruction “data to be collected below – step 2”  \nApply Classification rules\nConclude according to conclusion rules below with 80% certainty threshold\nIf certainty threshold is not reached, collect the content according to the instruction “data to be collected below – step 3”  \nApply Classification rules\nConclude according to conclusion rules.\nIf certainty threshold is not reached, Return No\nIf browsing Tavily Search tool is unavailable, fails, Return \"No\"\n\n\n\nConclusion rules:\nReturn exactly one word: \n  Yes or No\n  justification\n  quote from the source \nReturn ONLY the word \"Yes\" or \"No\" withen the justification including quote from the source \n\n\n## Classification Rules\n\n### Return \"Yes\" ONLY when:\n1. **Direct offering**: It is obvious in the content that you have collected that the company provide, deliver, sell, implement, or offer the Topic as their own service/product\n2. **Clear service listing**: It is obvious in the content that you have collected that the Topic appears in the company services, solutions, or product sections.\n\n### Return \"No\" when:\n1. **No mention**: It is obvious in the content that you have collected that the company do not provide, deliver, sell, implement, or offer the Topic as their own service/product\n2. **Adjacent services**: It is obvious in the content that you have collected that the service / product offered by the company are related to the topic but distinctly different from the topic.\n\n\n## Content to be Collected Step 1: LinkedIn Analysis  \nlinkedIn_page_content: \n{{ $('HTTP Request1').item.json.data }}\n\n\n### Content to be Collected Step 2: Extended Search \nUse the browser tool 2 times maximum to search:\nGartner site page dedicated to \"{{ $('When Executed Monitoring Tool Workflow').item.json.Topic }}\"\n\n### Content to be Collected Step 3: Extended Search\nUse the browser tool 3 times maximum to search Company official website \n\n\n## Output Requirements\n1. Return ONLY the word \"Yes\" or \"No\" withen justification including quote from the source \n2. No punctuation\n3. No confidence levels\n\n##Must :  dont return null, your output_format : \nReturn only the JSON block—no extra commentary, no markdown fences.\n{\n\"answer\" : \"Yes/No\",\n\"justification\" : \"String\",\n\"quote\" : \"String\"\n}\n\n## Primary Evidence\n## Final Decision:\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -4368,
+        -528
+      ],
+      "id": "ed04e3c8-8f00-4396-942f-6e78516cd5d0",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Extract in Tavily\nyou must use it only for 5 times maximum",
+        "resource": "crawl",
+        "url": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('URL', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        -4144,
+        -144
+      ],
+      "id": "f58767c9-03a4-4eb2-ba10-31f10107c4c3",
+      "name": "Extract in Tavily",
+      "credentials": {
+        "tavilyApi": {
+          "id": "kSJwk0KhzIOSCCO3",
+          "name": "Tavily account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When Executed Monitoring Tool Workflow": {
+      "main": [
+        [
+          {
+            "node": "reffine the google query search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Supplier is in the Topic, Continue": {
+      "main": [
+        [
+          {
+            "node": "Prepare Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If Error, Break",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Output": {
+      "main": [
+        [
+          {
+            "node": "Extract Information",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Information": {
+      "main": [
+        [
+          {
+            "node": "Profile Attributes extractor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Description Generator Agent": {
+      "main": [
+        [
+          {
+            "node": "Preparing Output Description",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If Error, Break",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparing Output Description": {
+      "main": [
+        [
+          {
+            "node": "AI Agent Supplier Web Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Name in Analysis Table": {
+      "main": [
+        [
+          {
+            "node": "If Supplier Does Not Exist, Insert New Supplier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Supplier Does Not Exist, Insert New Supplier": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Old Supplier's Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert New Supplier": {
+      "main": [
+        [
+          {
+            "node": "Send New Supplier's Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "LinkedIn Link Extractor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "reffine the google query search": {
+      "main": [
+        [
+          {
+            "node": "Check Name in Analysis Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Description Generator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extract the good profile": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search in Tavily Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent Supplier Web Search",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent Supplier Web Search",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent Supplier Web Search",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser *": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent Supplier Web Search",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Description Generator Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Supplier Does Not Exist, Insert New Supplier1": {
+      "main": [
+        [
+          {
+            "node": "Insert New Supplier",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Old Supplier's Answer1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Name in Analysis Table1": {
+      "main": [
+        [
+          {
+            "node": "If Supplier Does Not Exist, Insert New Supplier1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LinkedIn Link Extractor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser2": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "LinkedIn Link Extractor",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser3": {
+      "ai_outputParser": [
+        []
+      ]
+    },
+    "Profile Attributes extractor": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Profile Attributes extractor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-7": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Description Generator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Structured Output Parser1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model with Langfuse": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "OpenAI Chat Model with Langfuse1": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "OpenAI Chat Model with Langfuse2": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "OpenAI Chat Model with Langfuse3": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "OpenAI Chat Model with Langfuse4": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "OpenRouter Chat Model7": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If Error, Break",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn Link Extractor": {
+      "main": [
+        [
+          {
+            "node": "extract the good profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent Supplier Web Search": {
+      "main": [
+        [
+          {
+            "node": "Check Name in Analysis Table1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent Supplier Web Search",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "If Supplier is in the Topic, Continue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract in Tavily": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timeSavedMode": "fixed",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "When Executed Monitoring Tool Workflow": [
+      {
+        "json": {
+          "Company Name": "ABBYY",
+          "Topic": "Intelligent Document Processing (IDP)",
+          "Topic ID": 7,
+          "Topic Definition": "AI/ML-based platforms that ingest, classify, extract, and validate data from unstructured and semi-structured documents at scale, going beyond OCR and RPA to deliver accurate document understanding for downstream processes."
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "versionId": "f6875af5-ba8e-4606-8a45-23a44bb26b1c",
+  "activeVersionId": "f6875af5-ba8e-4606-8a45-23a44bb26b1c",
+  "versionCounter": 71,
+  "triggerCount": 0,
+  "tags": [
+    {
+      "updatedAt": "2025-08-12T10:09:02.677Z",
+      "createdAt": "2025-08-12T10:09:02.677Z",
+      "id": "auGKHaADmz4Oz4sg",
+      "name": "1.0"
+    }
+  ],
+  "shared": [
+    {
+      "updatedAt": "2025-09-25T09:06:58.618Z",
+      "createdAt": "2025-09-25T09:06:58.618Z",
+      "role": "workflow:owner",
+      "workflowId": "wqLtZRrarAx4CRJo",
+      "projectId": "djYaStOn9zI5EsPo",
+      "project": {
+        "updatedAt": "2025-09-15T16:43:28.477Z",
+        "createdAt": "2025-08-12T10:01:21.384Z",
+        "id": "djYaStOn9zI5EsPo",
+        "name": "alaeddine mansouri <alaeddine.mansouri@apaia-technology.io>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "4a26304c-2848-4f11-9dde-91390758dc98"
+      }
+    }
+  ]
+}
