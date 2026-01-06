@@ -1,0 +1,2355 @@
+{
+  "updatedAt": "2026-01-06T12:51:24.195Z",
+  "createdAt": "2025-09-16T08:50:16.645Z",
+  "id": "9zMyoBvMYvJ6Rsgg",
+  "name": "Sourcing_Agent",
+  "description": null,
+  "active": false,
+  "isArchived": true,
+  "nodes": [
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "Topic",
+          "mode": "list",
+          "cachedResultName": "Topic"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "name",
+              "value": "={{ $('Code').item.json.topic }}"
+            },
+            {
+              "column": "frequency",
+              "value": "={{ $('Waiting for Topic').item.json.body.frequency }}"
+            },
+            {
+              "column": "search_top_x",
+              "value": "={{ $('Waiting for Topic').item.json.body.searchTopX }}"
+            },
+            {
+              "column": "user_id",
+              "value": "={{ $('Waiting for Topic').item.json.body.userId }}"
+            },
+            {
+              "column": "last_execution",
+              "value": "={{ $('Waiting for Topic').item.json.body.search_datetime }}"
+            },
+            {
+              "column": "is_newsletter",
+              "value": "0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -5984,
+        1632
+      ],
+      "id": "07f75e02-da77-40a8-b435-8af31eab2668",
+      "name": "Inserting New Topic to Database",
+      "credentials": {
+        "mySql": {
+          "id": "vLi6G0fVdwTGtEXv",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": {
+          "__rl": true,
+          "value": "Topic",
+          "mode": "list",
+          "cachedResultName": "Topic"
+        },
+        "limit": 1,
+        "where": {
+          "values": [
+            {
+              "column": "name",
+              "value": "={{ $('Code').item.json.topic }}"
+            },
+            {
+              "column": "user_id",
+              "value": "={{ $('Waiting for Topic').item.json.body.userId }}"
+            },
+            {
+              "column": "last_execution",
+              "value": "={{ $('Waiting for Topic').item.json.body.search_datetime }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -5776,
+        1632
+      ],
+      "id": "3c13ecce-7cdc-49e6-b236-7559e3fa313b",
+      "name": "Retrieving New Topic ID",
+      "credentials": {
+        "mySql": {
+          "id": "vLi6G0fVdwTGtEXv",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Access the first item from the input\nconst webhookData = $('Waiting for Topic').first().json.body;\nconst idtopic     = $input.first().json.id;\n\n// Frequency mapping function\nfunction mapFrequency(freq) {\n  if (freq.toLowerCase() === \"daily\")   return \"d\";\n  if (freq.toLowerCase() === \"weekly\")  return \"w\";\n  if (freq.toLowerCase() === \"monthly\") return \"m\";\n  return freq; // Return original if not matched\n}\n\n// Extracting values\nconst user_id           = webhookData.user_id;\nconst topic             = $('Code').first().json.topic;\nconst topicDescription  = $('Code').first().json.definition;  // ← new\nconst email             = webhookData.email;\nconst top_k             = webhookData.top_k;\nconst frequency         = mapFrequency(webhookData.frequency);\nconst searchDatetime    = webhookData.search_datetime;\n\n// Return these values so they can be used by subsequent nodes\nreturn [\n  {\n    json: {\n      user_id,\n      topic,\n      topicDescription,   // ← included here\n      email,\n      top_k,\n      frequency,\n      searchDatetime,\n      idtopic,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5504,
+        1632
+      ],
+      "id": "70d0468f-7ba2-4a72-9cd7-38f9d025f145",
+      "name": "Preparing New Input variables"
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "topic"
+            },
+            {
+              "fieldToAggregate": "email"
+            },
+            {
+              "fieldToAggregate": "frequency"
+            },
+            {
+              "fieldToAggregate": "searchDatetime"
+            },
+            {
+              "fieldToAggregate": "idtopic"
+            },
+            {
+              "fieldToAggregate": "topicDescription"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -5328,
+        1520
+      ],
+      "id": "99e2ad28-5f1b-4c8d-9d20-8fe0c1dd28b1",
+      "name": "Aggregating Input Variables"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "77b4d30b-cf0b-4297-8206-be86d0d4d52e",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -7840,
+        1488
+      ],
+      "id": "d7ae0375-9af1-4502-b616-d172734128be",
+      "name": "Waiting for Topic",
+      "webhookId": "77b4d30b-cf0b-4297-8206-be86d0d4d52e"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": {
+          "__rl": true,
+          "value": "Topic",
+          "mode": "list",
+          "cachedResultName": "Topic"
+        },
+        "limit": 1,
+        "where": {
+          "values": [
+            {
+              "column": "user_id",
+              "value": "={{ $('Waiting for Topic').item.json.body.userId }}"
+            },
+            {
+              "column": "name",
+              "value": "={{ $('Code').item.json.topic }}"
+            }
+          ]
+        },
+        "options": {
+          "detailedOutput": true
+        }
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -6368,
+        1488
+      ],
+      "id": "fb95ca47-a341-4502-b0be-78364e6d073f",
+      "name": "Check Existence of the Topic",
+      "credentials": {
+        "mySql": {
+          "id": "vLi6G0fVdwTGtEXv",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cc270b1f-4867-4312-87ed-677d9e35aa5e",
+              "leftValue": "={{ $json.data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -6160,
+        1488
+      ],
+      "id": "83c13553-1e85-46ac-802e-15cdc1643d97",
+      "name": "Check existence of the Received Topic"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Access the first item from the input\nconst webhookData = $('Waiting for Topic').first().json.body;\nconst idtopic     = $input.first().json.data[0].id;\n\n// Frequency mapping function\nfunction mapFrequency(freq) {\n  if (freq.toLowerCase() === \"daily\")   return \"d\";\n  if (freq.toLowerCase() === \"weekly\")  return \"w\";\n  if (freq.toLowerCase() === \"monthly\") return \"m\";\n  return freq; // Return original if not matched\n}\n\n// Extracting values\nconst user_id           = webhookData.user_id;\nconst topic             = $('Code').first().json.topic;\nconst topicDescription  = $('Code').first().json.definition;   // ← new\nconst email             = webhookData.email;\nconst top_k             = webhookData.top_k;\nconst frequency         = mapFrequency(webhookData.frequency);\nconst searchDatetime    = webhookData.search_datetime;\n\n// Return these values so they can be used by subsequent nodes\nreturn [\n  {\n    json: {\n      user_id,\n      topic,\n      topicDescription,   // ← included here\n      email,\n      top_k,\n      frequency,\n      searchDatetime,\n      idtopic,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5904,
+        1440
+      ],
+      "id": "1aacfee0-07ea-4ee0-aa21-f3c9b1632e72",
+      "name": "Preparing Input Variables"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5",
+          "mode": "list",
+          "cachedResultName": "GPT-5"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert in crafting highly optimized search queries for Google's SERP API.\n\nYour task is to generate 10 search queries to collect information related to suppliers or vendors offering solutions powered by AI or generative AI related to the user’s specified topic.\n\n🔹 Instructions & Best Practices:\nUser’s Topic -> The user will provide :\n\n   a topic that either matches an IT domain recognized by leading IT analysts such as Gartner group (e.g., Intelligent Document Processing (IDP), etc.) and a synthetic description of the topic  (e.g  Les solutions d’Intelligent Document Processing extraient, classent et comparent automatiquement CCTP, annexes techniques, plans et cahiers des charges pour repérer prestations manquantes, doublons et écarts, afin de faciliter la revue de conception des projets de construction.) \n\n  Or a  topic that  corresponds to more detailed IT function  (example : ‘Audit CCTP’  and a synthetic description of the topic : \" Fonction métier pour les projets AEC qui analyse l’ensemble des CCTP multi-lots afin de vérifier leur cohérence entre eux et leur conformité aux exigences du programme initial, dans le but de faciliter la revue de conception des projets de construction. \"\n\nFocus: The queries must revolve around finding suppliers offering AI-driven or generative AI solutions in that topic area.\n\nNatural Language: Ensure the queries read like typical Google searches (no advanced operators like site:, intitle:, inurl:, etc.).\n\nDiversity: Provide queries that explore different angles—such as solution providers value proposition, client case studies and implementation strategies, solutions benchmark in term of pricing and functions, , , or industry trends.\n\nConcise & Precise: Keep each query short (max 10 words)  yet descriptive for optimal search results.\n\n🔹Examples :\n\nexample  of query for topic that matches an IT domain recognized by leading IT analysts such as Gartner group such as « Intelligent Document Processing (IDP), etc.) » with synthetic description of the topic  \n« Les solutions d’Intelligent Document Processing extraient, classent et comparent automatiquement CCTP, annexes techniques, plans et cahiers des charges pour repérer prestations manquantes, doublons et écarts, afin de faciliter la revue de conception des projets de construction. »\nQuery 1 : software providers Intelligent Document Processing AI\nQuery 2 : client success story Intelligent Document Processing AI\nQuery 3 : benchmark Intelligent Document Processing AI\nQuery 4 : implementation Intelligent Document Processing AI\n\nexample of query for topic that corresponds to more detailed IT function such as \"Audit CCTP\" whith corresponding synthetic description \n\"Fonction métier pour les projets AEC qui analyse l’ensemble des CCTP multi-lots afin d’identifier les prestations présentes dans plusieurs CCTP et signaler les redondances, dans le but de faciliter la revue de conception des projets de construction.\"\nQuery 1 : « logiciel audit CCTP IA »\nQuery 2 : « meilleur logiciel audit CCTP IA »\nQuery 3 : « cas client logiciel audit CCTP IA »  \nQuery 4 : « comparaison logiciel audit CCTP IA »  \nQuery 5 : « implementation logiciel audit CCTP IA »  \nQuery 6 : « logiciel revue de conception pour projet de construction »  \n\n\n🔹 Generate  10  Structured Search Queries\n\nrule :  you response must be  between  only 2 quotes not 3",
+              "role": "system"
+            },
+            {
+              "content": "=\nUser Goal: {{ $json.topic }} \nGoal Description : {{ $json.topicDescription }}\nQueries:\n(Provide 6-10 queries below, following the guidelines above. Each should naturally include mentions of “AI” or “generative AI,” and focus on finding suppliers or vendors in the given domain.)\nthe answer must respect this format : \"\"Query1,Query2,Query3,..,QueryN\"\"\n\nrule :  you response must be  between  only 2 quotes not 3\nMust : the format of the output must b like  \"\"Queries\"\""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -5088,
+        1584
+      ],
+      "id": "511a61bc-ce7d-4318-bcec-5628b89982f7",
+      "name": "Generating Queries",
+      "credentials": {
+        "openAiApi": {
+          "id": "rmudht9sL6cgETQK",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "=python3 /home/node/.n8n/scripts/searcher_link.py '{{   $json.message.content }}'"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -3456,
+        1520
+      ],
+      "id": "e837f04d-eecf-4103-bb02-c1d0aa5b9499",
+      "name": "Searching Links"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Replace \"stdout\" with your actual field name containing the JSON array of { link, title } objects\nconst jsonString = $input.first().json.stdout;\nif (!jsonString) {\n  return [];\n}\n\nlet parsedData;\ntry {\n  parsedData = JSON.parse(jsonString);\n} catch (error) {\n  // If it's not valid JSON or fails to parse, return an empty array\n  return [];\n}\n\n// Ensure parsedData is an array before we iterate\nif (!Array.isArray(parsedData)) {\n  return [];\n}\n\n// Create a new array of items, each with a \"url\" and \"title\"\nreturn parsedData.map(item => {\n  return {\n    json: {\n      url: item.link || \"\",\n      title: item.title || \"\"\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3184,
+        1520
+      ],
+      "id": "38d54144-2be9-4884-885a-90cafd1175ce",
+      "name": "Preparing Links to Looping"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -2720,
+        1168
+      ],
+      "id": "8bd5c43f-bd98-4174-8cdb-c018c7557a75",
+      "name": "Loop Over Links"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": {
+          "__rl": true,
+          "value": "Ranking",
+          "mode": "list",
+          "cachedResultName": "Ranking"
+        },
+        "returnAll": true,
+        "where": {
+          "values": [
+            {
+              "column": "Link",
+              "value": "={{ $json.url }}"
+            },
+            {
+              "column": "topic_id",
+              "value": "={{ $('Aggregating Input Variables').item.json.idtopic[0] }}"
+            }
+          ]
+        },
+        "options": {
+          "detailedOutput": true
+        }
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -2496,
+        1232
+      ],
+      "id": "8371decc-d182-4f0f-8874-46e2b1ac9fa9",
+      "name": "Check Existence of the Link",
+      "credentials": {
+        "mySql": {
+          "id": "vLi6G0fVdwTGtEXv",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "64d548f1-5961-464b-bd52-f0550e0b7858",
+              "leftValue": "={{ $json.data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2320,
+        1232
+      ],
+      "id": "0827f8d5-5942-4101-8fa9-331829279138",
+      "name": "If Link Does Not Exist, Continue"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b2998da2-bff5-439e-b114-a655f8245886",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "{\"message\": \"Internal server error\"}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "001d554a-4042-4864-a6b2-ddf49c7ab1a9",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "{\"error\": \"URL parameter is missing\"}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "574b6888-1d07-40c9-985e-66bc63dc4273",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "\"error\": \"403 Client Error: Forbidden for url",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1664,
+        992
+      ],
+      "id": "76f71a7d-1c76-4ea7-951b-025f07c28de0",
+      "name": "If Scraping is Done, Continue"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0a11d788-a57b-41ce-a59f-78138f7ea090",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "\"error\": \"403 Client Error",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "9de670e0-2447-4317-aca6-661786d727f6",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "\"error\": \"404 Client Error",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "6ae46cca-97f7-4953-8f19-da4dad09b800",
+              "leftValue": "={{ $json.stdout }}",
+              "rightValue": "\"error\"",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1904,
+        1360
+      ],
+      "id": "e0d0d745-36ed-441d-a4a7-357ae46e7637",
+      "name": "If Scraping Does Not Contain Errors, Continue"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Extract every supplier or company mentioned in the text  {{ $('OpenAI').item.json.message.content }} and return them in the following JSON format:\n{\n  \"mentioned_suppliers\": \"Supplier1, Supplier2, ...\"\n}\nIf multiple suppliers are mentioned, separate them with commas.\n\nDo not add or remove any suppliers beyond those mentioned in the text.\n\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        -880,
+        1744
+      ],
+      "id": "1680e655-e750-4944-bee2-5d674ab6a767",
+      "name": "Format Validator Agent",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "maxTries": 5,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "223aa338-f7c9-49fc-9516-d947439c8720",
+              "leftValue": "={{ $json.message.content.mentioned_suppliers }}",
+              "rightValue": "=suppliers_mentioned",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "870f2e3f-fb4c-4c1e-a0cb-cc35ce811ad3",
+              "leftValue": "={{ $json.message.content.mentioned_suppliers }}",
+              "rightValue": "No Mentioned Suppliers",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -528,
+        1152
+      ],
+      "id": "9bae40a3-825f-41e6-92c5-27c938d65c5b",
+      "name": "If Suppliers Exist, Continue"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputText = $('If Suppliers Exist, Continue').first().json.message.content;\nconsole.log(\"debug alaeddine : \", inputText);\n\n// No need to parse - inputText is already an object\nif (!inputText.mentioned_suppliers) {\n  return [];\n}\n\n// Split by comma, trim whitespace, and remove empty strings\nconst suppliersArray = inputText.mentioned_suppliers\n  .split(',')\n  .map(supplier => supplier.trim())\n  .filter(supplier => supplier !== \"\");\n\n// Format each supplier into an output item for n8n\nreturn suppliersArray.map(supplier => ({ json: { supplier } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        1008
+      ],
+      "id": "9a2293b9-398f-42f2-a9b2-a8452fa74c92",
+      "name": "Preparing Suppliers as Items",
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "6B6OFtyKq9iDNKoZ",
+          "mode": "list",
+          "cachedResultName": "Suppliers_Validator"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Company Name": "={{ $json.supplier }}",
+            "Topic": "={{ $('Aggregating Input Variables').item.json.topic[0] }}",
+            "Topic ID": "={{ $('Aggregating Input Variables').item.json.idtopic[0] }}"
+          },
+          "matchingColumns": [
+            "Company Name"
+          ],
+          "schema": [
+            {
+              "id": "Company Name",
+              "displayName": "Company Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Topic",
+              "displayName": "Topic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Topic ID",
+              "displayName": "Topic ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -96,
+        1152
+      ],
+      "id": "a7e8ff12-9ec0-4df1-8d4f-fbfc2289281c",
+      "name": "Supplier Validator Sub Workflow",
+      "retryOnFail": false,
+      "maxTries": 5,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "item",
+              "renameField": true,
+              "outputFieldName": "Identified Suppliers"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        128,
+        1152
+      ],
+      "id": "830684ec-233a-4b4f-918c-a2203fbb861f",
+      "name": "Aggregating Validated Suppliers"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  // 1. Récupérer la liste des fournisseurs identifiés et compter leur nombre\n  const identifiedSuppliers = item.json[\"Identified Suppliers\"] || [];\n  const numberOfSuppliers = identifiedSuppliers.length;\n\n  // 2. Récupérer le lien de l’élément courant\n  const link = $('Loop Over Links').first().json.url || \"\";\n\n  // Fonction de normalisation : on retire les espaces et tous les caractères non alphanumériques\n  const normalize = str =>\n    str.toLowerCase().replace(/\\s+/g, '').replace(/[^a-z0-9]/g, '');\n\n  // Normaliser le lien\n  const normalizedLink = normalize(link);\n\n  // 3. Vérifier si le lien contient une correspondance partielle du nom du fournisseur\n  const isInHouse = identifiedSuppliers.some(supplier => {\n    const normalizedSupplier = normalize(supplier);\n    return normalizedLink.includes(normalizedSupplier);\n  });\n\n  // 4. Déterminer si c'est un fournisseur tiers\n  const isThirdParty = !isInHouse;\n\n  // 5. Extraire le domaine original du lien avec une expression régulière\n  const match = link.match(/^https?:\\/\\/([^/]+)/);\n  const source = match ? match[1] : \"Invalid URL\";\n\n  // 6. Retourner le résultat final\n  return {\n    json: {\n      numberOfSuppliers,\n      thirdParty: isThirdParty ? \"Yes\" : \"No\",\n      source\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        1152
+      ],
+      "id": "d8eb53ca-2a34-42ed-96f5-213c429c91d3",
+      "name": "Preparing Variables for Ranking"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Retrieve the necessary variables from the first input item\nconst numberOfSuppliers = $input.first().json.numberOfSuppliers;\nconst thirdParty = $input.first().json.thirdParty; // Expected to be \"Yes\" or \"No\"\n\nlet rank;\n\n// Apply the ranking criteria:\nif (numberOfSuppliers < 1) {\n  rank = 3;\n} else if (numberOfSuppliers === 1) {\n  rank = 4;\n} else if (numberOfSuppliers > 1 && thirdParty === \"No\") {\n  rank = 6;\n} else if (numberOfSuppliers > 1 && thirdParty === \"Yes\") {\n  rank = 7;\n}\n\n// Return the result as an output item.\nreturn [\n  {\n    json: {\n      rank: rank,\n      // you can also forward other properties if needed\n      numberOfSuppliers: numberOfSuppliers,\n      thirdParty: thirdParty\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        1152
+      ],
+      "id": "9f8dc113-5e6e-471c-b396-d31b7a32500d",
+      "name": "Ranking"
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "Ranking",
+          "mode": "list",
+          "cachedResultName": "Ranking"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "topic_id",
+              "value": "={{ $('Aggregating Input Variables').item.json.idtopic[0] }}"
+            },
+            {
+              "column": "Identified_Suppliers",
+              "value": "=( {{ $('Aggregating Validated Suppliers').item.json['Identified Suppliers'] }} )"
+            },
+            {
+              "column": "Link",
+              "value": "={{ $('Loop Over Links').item.json.url }}"
+            },
+            {
+              "column": "Relevance_Rating",
+              "value": "={{ $json.rank }}"
+            },
+            {
+              "column": "Source",
+              "value": "={{ $('Preparing Variables for Ranking').item.json.source }}"
+            },
+            {
+              "column": "Third_Party",
+              "value": "={{ $('Preparing Variables for Ranking').item.json.thirdParty }}"
+            },
+            {
+              "column": "Article_Title",
+              "value": "={{ $('Loop Over Links').item.json.title }}"
+            },
+            {
+              "column": "Rating_Justification",
+              "value": "NOT NOW"
+            },
+            {
+              "column": "Search_Date",
+              "value": "={{ $('Aggregating Input Variables').item.json.searchDatetime[0] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        800,
+        1168
+      ],
+      "id": "1bd20d54-27f8-432c-abaf-a117606f1f72",
+      "name": "Inserting Articles to Ranking Table",
+      "credentials": {
+        "mySql": {
+          "id": "vLi6G0fVdwTGtEXv",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        752,
+        1360
+      ],
+      "id": "26211b1a-2bf6-4302-b570-99459ac8fb55",
+      "name": "If Error, Break"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": {
+          "__rl": true,
+          "value": "Ranking",
+          "mode": "list",
+          "cachedResultName": "Ranking"
+        },
+        "returnAll": true,
+        "where": {
+          "values": [
+            {
+              "column": "Relevance_Rating",
+              "condition": ">=",
+              "value": "4"
+            },
+            {
+              "column": "topic_id",
+              "value": "={{ $('Aggregating Input Variables').item.json.idtopic[0] }}"
+            },
+            {
+              "column": "Search_Date",
+              "value": "={{ $('Aggregating Input Variables').item.json.searchDatetime[0] }}"
+            }
+          ]
+        },
+        "options": {
+          "detailedOutput": true
+        }
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -1808,
+        720
+      ],
+      "id": "d0a0a7f7-623a-4b40-9e6c-bfa4cd8b9068",
+      "name": "Retrieving Articles with Rank 4",
+      "executeOnce": true,
+      "credentials": {
+        "mySql": {
+          "id": "vLi6G0fVdwTGtEXv",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Function Node: Process supplier data using nested input data\n// It assumes the input JSON has a structure like { data: [ { ... }, { ... }, ... ] }\n\n// Extract the input data array\nconst inputData = $input.first().json.data; \n\n// Extract topic from the first item (or any item since they should all have the same topic_id)\nconst topic = inputData.length > 0 ? (inputData[0].topic_id || \"\") : \"\";\n\nconst supplierData = {};\n\nfor (const item of inputData) {\n  // 1. Grab the raw string, e.g. \"( Loopio, OtherCo )\"\n  const identifiedRaw = item[\"Identified_Suppliers\"] || \"\";\n  // 2. Strip parentheses\n  const identifiedClean = identifiedRaw\n    .replace(/^\\s*\\(\\s*/, \"\")\n    .replace(/\\s*\\)\\s*$/, \"\");\n  \n  // 3. Split, trim, lowercase, filter\n  const suppliers = identifiedClean\n    .split(\",\")\n    .map(s => s.trim().toLowerCase())\n    .filter(s => s !== \"\");\n  \n  const link = item[\"Link\"] || \"\";\n  const relevanceRating = Number(item[\"Relevance_Rating\"]) || 0;\n  \n  for (const supplier of suppliers) {\n    if (!supplierData[supplier]) {\n      supplierData[supplier] = {\n        links: new Set(),\n        total_relevance: 0,\n        topic: topic\n      };\n    }\n    if (link) {\n      supplierData[supplier].links.add(link);\n    }\n    supplierData[supplier].total_relevance += relevanceRating;\n  }\n}\n\n// Build and sort output\nconst outputData = Object.entries(supplierData).map(([supplier, info]) => ({\n  \"Identified Suppliers\": supplier,\n  \"Mentioned Links\": Array.from(info.links).join(\"; \"),\n  \"Final Score\": info.total_relevance,\n  \"Topic\": info.topic\n})).sort((a, b) => b[\"Final Score\"] - a[\"Final Score\"]);\n\n// Return for n8n\nreturn outputData.map(data => ({ json: data }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1584,
+        720
+      ],
+      "id": "4664d248-1533-482a-bfe5-c9d45c862969",
+      "name": "Calculating Final Score and Appending Mentioned Links"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1264,
+        528
+      ],
+      "id": "23c07bac-b4dc-4bf9-9ebf-c7e7ce92713f",
+      "name": "Loop Over Suppliers"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": {
+          "__rl": true,
+          "value": "Analysis",
+          "mode": "list",
+          "cachedResultName": "Analysis"
+        },
+        "limit": 1,
+        "where": {
+          "values": [
+            {
+              "column": "Supplier",
+              "value": "={{ $json[\"Identified Suppliers\"] }}"
+            },
+            {
+              "column": "topic_id",
+              "value": "={{ $json.Topic }}"
+            }
+          ]
+        },
+        "options": {
+          "detailedOutput": true
+        }
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -1056,
+        608
+      ],
+      "id": "8aa9163a-3c2b-4f27-bdbf-df57248d3293",
+      "name": "Selecting Supplier ID",
+      "credentials": {
+        "mySql": {
+          "id": "vLi6G0fVdwTGtEXv",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f18416b2-2c0c-4ec2-9ad1-483d4c2dbb4a",
+              "leftValue": "={{ $json.data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -864,
+        608
+      ],
+      "id": "f37c0296-f7ae-4ddf-86f3-9d50f2e460dc",
+      "name": "If Exists, Continue"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        832
+      ],
+      "id": "04d025b6-bcc1-4231-aa17-0fda11807908",
+      "name": "If Error, Break1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Function Node: Sum scores and merge links\n\n// 1. Get the old and new final scores\nconst oldScore = Number($input.first().json.data[0][\"Final Score\"] || 0);\nconst newScore = Number($('Loop Over Suppliers').first().json[\"Final Score\"] || 0);\nconst updatedFinalScore = oldScore + newScore;\n\n// 2. Get the old and new link strings\nconst oldLinksStr = $input.first().json.data[0].Links || \"\";\nconst newLinksStr = $('Loop Over Suppliers').first().json[\"Mentioned Links\"] || \"\";\n\n// 3. Split on semicolons, trim, filter empty, and dedupe\nconst combined = [\n  ...oldLinksStr.split(/;\\s*/),\n  ...newLinksStr.split(/;\\s*/)\n]\n  .map(link => link.trim())\n  .filter(link => link !== \"\");\n\nconst updatedLinks = Array.from(new Set(combined)).join(\"; \");\n\n// 4. Return the updated values\nreturn [\n  {\n    json: {\n      \"Updated Final Score\": updatedFinalScore,\n      \"Updated Links\": updatedLinks\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        608
+      ],
+      "id": "8416bf79-2250-4129-aa3e-c65cf7c3f840",
+      "name": "Calculating New Score"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": {
+          "__rl": true,
+          "value": "Analysis",
+          "mode": "list",
+          "cachedResultName": "Analysis"
+        },
+        "dataMode": "defineBelow",
+        "columnToMatchOn": "Supplier",
+        "valueToMatchOn": "={{ $('Loop Over Suppliers').item.json[\"Identified Suppliers\"] }}",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "Final Score",
+              "value": "={{ $json[\"Updated Final Score\"] }}"
+            },
+            {
+              "column": "Links",
+              "value": "={{ $json[\"Updated Links\"] }}"
+            },
+            {
+              "column": "Update_Date",
+              "value": "={{ $('Aggregating Input Variables').item.json.searchDatetime[0] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -464,
+        608
+      ],
+      "id": "639faf40-19dc-4ee7-ad98-54d05d61f5f4",
+      "name": "Updating Final Score",
+      "credentials": {
+        "mySql": {
+          "id": "vLi6G0fVdwTGtEXv",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -976,
+        192
+      ],
+      "id": "a5f36755-3a2a-4505-8d5b-f15f220c793f",
+      "name": "Merge Outputs"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Merge Outputs').item.json.email[0] }}",
+        "subject": "=“ {{ $('Merge Outputs').item.json.topic[0] }} ” Analysis Finished – View Results",
+        "message": "=<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <title>Topic Processing Complete</title>\n  </head>\n  <body style=\"margin:0; padding:0; font-family: Arial, sans-serif; background-color:#f4f4f4;\">\n    <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">\n      <tr>\n        <td align=\"center\" style=\"padding: 20px 0;\">\n          <table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 2px 4px rgba(0,0,0,0.1);\">\n            \n            <!-- Header -->\n            <tr>\n              <td style=\"background-color:#0044cc; padding:20px; text-align:center;\">\n                <h1 style=\"color:#ffffff; margin:0; font-size:24px;\">Processing Complete</h1>\n              </td>\n            </tr>\n            \n            <!-- Body -->\n            <tr>\n              <td style=\"padding:30px; color:#333333; line-height:1.6;\">\n                <p style=\"margin-top:0;\">Hello,</p>\n                <p>We’re pleased to let you know that the processing for the topic <strong> {{ $('Calculating Runpod Consumption').item.json.topic[0] }} </strong> has been finalized.</p>\n                <p style=\"text-align:center; margin:30px 0;\">\n                  <a href=\"http://beta-agent.apaia-technology.io/sourcing-agent/#/login\" \n                     style=\"background-color:#007bff; color:#ffffff; text-decoration:none; \n                            padding:12px 24px; border-radius:4px; display:inline-block; font-size:16px;\">\n                    View Your Results\n                  </a>\n                </p>\n                <p>If you have any questions or need further clarification, simply reply to this email—we’re here to help!</p>\n                <p style=\"margin-bottom:0;\">Best regards,<br/>\n                     <strong>APAIA Technology</strong><br/>\n\n                </p>\n              </td>\n            </tr>\n            \n            <!-- Footer -->\n            <tr>\n              <td style=\"background-color:#f0f0f0; padding:15px; text-align:center; font-size:12px; color:#777777;\">\n                © 2025 APAIA Technology — All rights reserved.\n              </td>\n            </tr>\n            \n          </table>\n        </td>\n      </tr>\n    </table>\n  </body>\n</html>\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4c9b7968-3746-4f28-bf47-378506dbf55a",
+      "name": "Send Email When Workflow Successfully Executed",
+      "webhookId": "9530fbca-4bf5-4a04-b489-dbb17b9dece3"
+    },
+    {
+      "parameters": {
+        "command": "=runpodctl create pod \\\n  --name \"{{ $('Waiting for Topic').item.json.body.userId }}_{{ $json.topic }}\" \\\n  --gpuType \"NVIDIA A100-SXM4-80GB\" \\\n  --imageName ollama/ollama \\\n  --containerDiskSize 40 \\\n  --networkVolumeId u31ph7h1dc \\\n  --volumePath /root/.ollama \\\n  --ports 11434/http \\\n  --secureCloud\n"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -7040,
+        1488
+      ],
+      "id": "7141dc12-efae-49c5-a516-ed927221de6a",
+      "name": "Create a pod",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Function Node (JavaScript)\n// Each incoming item must have item.json.stdout containing:\n//   pod \"<ID>\" created for $X / hr\n// Works with many incoming items.\n\nreturn $input.all().map(item => {\n  const text = (item.json.stdout ?? \"\").toString();\n\n  // Capture the ID inside quotes after the word “pod”\n  const m = text.match(/pod\\s+\"([^\"]+)\"/i);\n  if (!m) {\n    throw new Error(`Pod ID not found in: ${text}`);\n  }\n\n  const podId = m[1];\n  const link  = `https://${podId}-11434.proxy.runpod.net`;\n\n  // Return the item with the new fields added\n  return {\n    json: {\n      ...item.json,\n      pod_id:   podId,\n      pod_link: link\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6816,
+        1488
+      ],
+      "id": "55f296ef-0127-4d12-9f68-479d517f6f19",
+      "name": "Retrieve Ollama Address & Pod ID",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "amount": 120
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -6640,
+        1488
+      ],
+      "id": "567b145e-5c40-425a-aae9-8d7d05613777",
+      "name": "Wait 2 minutes",
+      "webhookId": "abf9401e-e509-4f72-96ee-02c478d716db",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "content": "## Pod Creation\n",
+        "height": 300,
+        "width": 620,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -7296,
+        1424
+      ],
+      "id": "f3a76d41-b374-4449-86a3-128d9ada711d",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## Checking Topic Unicity\n",
+        "height": 400,
+        "width": 1300
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -6640,
+        1392
+      ],
+      "id": "5f1a7219-c59f-44e9-a3a1-dd95b82ba7f8",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## Queries Generator",
+        "height": 280,
+        "width": 320,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -5200,
+        1472
+      ],
+      "id": "fd0d3c3c-0c67-4001-ad2f-f3ca6c84708a",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "## Link Google Searcher",
+        "height": 280,
+        "width": 680,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -4720,
+        1472
+      ],
+      "id": "fd629650-78a7-48fe-9291-fe9a3456f826",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "## Link Processing",
+        "height": 620,
+        "width": 3640,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -3248,
+        1072
+      ],
+      "id": "f01d51fa-7456-4dd6-bbd9-2b8a79f1ee6a",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "## Link Unicity Check",
+        "height": 240,
+        "width": 420
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -3664,
+        1168
+      ],
+      "id": "517ec887-fb83-4e2c-94e8-4c31bab90bc7",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "## Link Scraper\n",
+        "height": 240,
+        "width": 560
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -3168,
+        1088
+      ],
+      "id": "43dfcc93-9b62-4e47-b4a7-d5e1bb5049f1",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "content": "## Supplier Extractor & Validator",
+        "height": 360,
+        "width": 900
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2576,
+        1088
+      ],
+      "id": "7b13b811-6bed-4f7b-86f4-5878cf924375",
+      "name": "Sticky Note7"
+    },
+    {
+      "parameters": {
+        "content": "## Supplier Validator Via Linkedin Sub Workflow",
+        "height": 360,
+        "width": 600
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1520,
+        1200
+      ],
+      "id": "61924d55-f65b-4c4f-b1b5-594de960ed58",
+      "name": "Sticky Note8"
+    },
+    {
+      "parameters": {
+        "content": "## Article Ranking",
+        "height": 360,
+        "width": 380
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -896,
+        1200
+      ],
+      "id": "e00ad1a0-2b4f-410a-8dfa-8b4e73954992",
+      "name": "Sticky Note9"
+    },
+    {
+      "parameters": {
+        "content": "## Inserting Article Into Database",
+        "height": 260,
+        "width": 280
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        1088
+      ],
+      "id": "b7d0c1b4-d4c7-4491-862d-37899ce67034",
+      "name": "Sticky Note10"
+    },
+    {
+      "parameters": {
+        "content": "## Calculating Suppliers' Final Score\n",
+        "height": 520,
+        "width": 1820,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2480,
+        528
+      ],
+      "id": "464e2fc9-084c-49bc-bccd-f9a2eee94347",
+      "name": "Sticky Note11"
+    },
+    {
+      "parameters": {
+        "jsCode": "const COST_PER_HR = 1.89;\n\nfunction parseLocal(str) {                    // <-- changed\n  return new Date(str.replace(' ', 'T'));     // no Z suffix\n}\n\nreturn $input.all().map(item => {\n  const tsStr = typeof item.json.searchDatetime === 'string'\n    ? item.json.searchDatetime\n    : (item.json.searchDatetime ?? [])[0];\n\n  if (!tsStr) throw new Error('searchDatetime missing');\n\n  const start = parseLocal(tsStr);\n  if (isNaN(start)) throw new Error(`Bad date: ${tsStr}`);\n\n  const now    = new Date();\n  const hours  = (now - start) / 3_600_000;   // ms → h (should be ≥ 0)\n  const total  = hours * COST_PER_HR;\n\n  return {\n    json: {\n      ...item.json,\n      hoursElapsed: Number(hours.toFixed(2)),\n      totalCost:    Number(total.toFixed(2))\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -608,
+        208
+      ],
+      "id": "59aa0c08-000b-4ae6-921c-ea5d39277a2c",
+      "name": "Calculating Runpod Consumption",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "Runpod_Consumption",
+          "mode": "list",
+          "cachedResultName": "Runpod_Consumption"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "user_id",
+              "value": "={{ $('Waiting for Topic').item.json.body.userId }}"
+            },
+            {
+              "column": "user_email",
+              "value": "={{ $('Waiting for Topic').item.json.body.email }}"
+            },
+            {
+              "column": "topic_id",
+              "value": "={{ $json.idtopic[0] }}"
+            },
+            {
+              "column": "topic_name",
+              "value": "={{ $json.topic }}"
+            },
+            {
+              "column": "pod_id",
+              "value": "={{ $('Retrieve Ollama Address & Pod ID').item.json.pod_id }}"
+            },
+            {
+              "column": "pod_price",
+              "value": "1.89"
+            },
+            {
+              "column": "execution_started",
+              "value": "={{ $('Waiting for Topic').item.json.body.search_datetime }}"
+            },
+            {
+              "column": "execution_time",
+              "value": "={{ $json.hoursElapsed }}"
+            },
+            {
+              "column": "cost",
+              "value": "={{ $json.totalCost }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -400,
+        208
+      ],
+      "id": "56b480a7-576c-444a-be41-dac7c8b1da4a",
+      "name": "Insert Runpod Consumption Details",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "command": "=runpodctl remove pod {{ $('Retrieve Ollama Address & Pod ID').item.json.pod_id }}"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        208
+      ],
+      "id": "10773681-db93-4d58-9aed-4da157170556",
+      "name": "Delete Running Pod",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "content": "## Calculating Runpod Consumption Details\n## Deleting Running Pod\n",
+        "height": 300,
+        "width": 660,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2000,
+        112
+      ],
+      "id": "f3f7d911-9d20-45ec-86ad-77fb7f1af60c",
+      "name": "Sticky Note12"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO use_case_topics (\n    user_id, email,\n    use_case_input, expected_output, goal,\n    chosen_topic, environment,              -- leave environment NULL for now\n    ranked_topics, topic_description, topic_vendors_examples,\n    search_datetime\n) VALUES (\n    {{ $json.body.userId }},\n    '{{ $json.body.email }}',\n\n    -- escape any single quotes in the free‑text fields\n    '{{ $json.body.useCaseInput.replaceAll(\"'\", \"\\\\'\") }}',\n    '{{ $json.body.expectedOutput.replaceAll(\"'\", \"\\\\'\") }}',\n    '{{ $json.body.goal.replaceAll(\"'\", \"\\\\'\") }}',\n\n    '{{ $json.body.chosenTopic }}',\n    NULL,  -- or 'Greenfield' / 'Brownfield' if you send it\n\n    -- arrays → JSON columns\n    CAST('{{ JSON.stringify($json.body.rankedTopics) }}' AS JSON),\n    '{{ $json.body.topicDescription.replaceAll(\"'\", \"\\\\'\") }}',\n    CAST('{{ JSON.stringify($json.body.companies) }}' AS JSON),\n\n    -- ISO‑8601 → MySQL DATETIME\n    '{{ $json.body.search_datetime.replace(\"T\", \" \") }}'\n);\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -8320,
+        1712
+      ],
+      "id": "94cbb14d-80ff-405c-98dc-60e315b92af7",
+      "name": "MySQL1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": {
+          "__rl": true,
+          "value": "Topic",
+          "mode": "list",
+          "cachedResultName": "Topic"
+        },
+        "limit": 1,
+        "where": {
+          "values": [
+            {
+              "column": "name",
+              "value": "={{ $('Waiting for Topic').item.json.body.topic }}"
+            }
+          ]
+        },
+        "options": {
+          "detailedOutput": true
+        }
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -8160,
+        1728
+      ],
+      "id": "644f6b6c-3dcd-4139-ae3a-261b16663dca",
+      "name": "MySQL",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b484cbf9-177a-4d0f-a65f-92f3c8051849",
+              "leftValue": "={{ $json.data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -7936,
+        1712
+      ],
+      "id": "f455c2a1-16d1-4507-b8fc-19e6fe33bc3f",
+      "name": "If",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "Topic",
+          "mode": "list",
+          "cachedResultName": "Topic"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "frequency",
+              "value": "={{ $('Waiting for Topic').item.json.body.frequency }}"
+            },
+            {
+              "column": "last_execution",
+              "value": "={{ $('Waiting for Topic').item.json.body.search_datetime }}"
+            },
+            {
+              "column": "name",
+              "value": "={{ $('Waiting for Topic').item.json.body.topic }}"
+            },
+            {
+              "column": "search_top_x",
+              "value": "={{ $('Waiting for Topic').item.json.body.searchTopX }}"
+            },
+            {
+              "column": "user_id",
+              "value": "={{ $('Waiting for Topic').item.json.body.userId }}"
+            },
+            {
+              "column": "is_newsletter",
+              "value": "0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -7808,
+        1680
+      ],
+      "id": "1d0d2320-bda6-495f-8556-792cddae754b",
+      "name": "MySQL2",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": {
+          "__rl": true,
+          "value": "Topic",
+          "mode": "list",
+          "cachedResultName": "Topic"
+        },
+        "limit": 1,
+        "where": {
+          "values": [
+            {
+              "column": "name",
+              "value": "={{ $('Waiting for Topic').item.json.body.topic }}"
+            },
+            {
+              "column": "user_id",
+              "value": "={{ $('Waiting for Topic').item.json.body.userId }}"
+            },
+            {
+              "column": "last_execution",
+              "value": "={{ $('Waiting for Topic').item.json.body.search_datetime }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -7568,
+        1904
+      ],
+      "id": "84faa2e2-5c60-4099-8a56-b496ce55ab3d",
+      "name": "Retrieving New Topic ID1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO beta_agent.Ranking (\n    Article_Title,\n    Identified_Suppliers,\n    Link,\n    Rating_Justification,\n    Relevance_Rating,\n    Search_Date,\n    Source,\n    Third_Party,\n    topic_id                         -- new topic ID\n)\nSELECT\n    Article_Title,\n    Identified_Suppliers,\n    Link,\n    Rating_Justification,\n    Relevance_Rating,\n    Search_Date,\n    Source,\n    Third_Party,\n    {{ $json.id }}                  -- ← targetTopicId (new)\nFROM beta_agent.Ranking\nWHERE topic_id = {{ $('MySQL').item.json.data[0].id }};   -- ← sourceTopicId\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -7376,
+        1952
+      ],
+      "id": "45a0aa18-d23c-4407-b855-5e07bb94098f",
+      "name": "MySQL3",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO beta_agent.Analysis (\n    `Company Size`,\n    `Description`,\n    `Field Specification`,\n    `Final Score`,\n    `Founded`,\n    `Headquarters`,\n    `Industry`,\n    `LinkedIn`,\n    `Links`,\n    `Locations`,\n    `Supplier`,\n    `Update_Date`,\n    `Website`,\n    `topic_id`\n)\nSELECT\n    `Company Size`,\n    `Description`,\n    `Field Specification`,\n    `Final Score`,\n    `Founded`,\n    `Headquarters`,\n    `Industry`,\n    `LinkedIn`,\n    `Links`,\n    `Locations`,\n    `Supplier`,\n    `Update_Date`,\n    `Website`,\n    {{ $('Retrieving New Topic ID1').item.json.id }}      -- new topic_id\nFROM beta_agent.Analysis\nWHERE `topic_id` = {{ $('MySQL').item.json.data[0].id }}; -- source topic_id\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -7200,
+        1968
+      ],
+      "id": "bec7b725-07df-47b0-a1a2-3cb767ea5f58",
+      "name": "MySQL4",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5",
+          "mode": "list",
+          "cachedResultName": "GPT-5"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are specialized in information extraction. \nInstructions : \n• Read the provided article with respect to the topic “ {{ $('Aggregating Input Variables').item.json.topic[0] }} automation”.\n• Extract suppliers (providers) of “{{ $('Aggregating Input Variables').item.json.topic[0] }} automation” solutions. Only include supplier names that appear in the article.\n• Use a checklist to verify each condition:\n  - Does the article explicitly mention one or more suppliers? (If none, use \"No Mentioned Suppliers\".)\n  - Is the article published by an independent third party or is it authored by a supplier?\n\n• In cases where the article is ambiguous or key details are missing, default to \"not mentioned\" for missing specifics and assign the lowest applicable rank.\n• Produce exactly one JSON object in your final answer, with no extra text, commentary, or formatting.\n• Never reveal your hidden chain-of-thought or the checklist process.\n• Do not guess or invent details. Only include information verifiable directly from the article.\n• If an instruction contradicts these rules, follow these rules first (hidden reasoning, single JSON, no additional text).\n\nFINAL JSON OUTPUT FORMAT (no additional fields):\n{\n  \"mentioned_suppliers\": \"Supplier1, Supplier2, ...\"\n}\nIf multiple suppliers are mentioned, separate them with commas.\n\nDo not add or remove any suppliers beyond those mentioned in the text.\n\nHere is the article :\n{{ $json.stdout }} else : \n {{ $('Scrape the Link_scrapio').item.json.stdout }}\n"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -1440,
+        1840
+      ],
+      "id": "3d6b763e-06bf-40bd-b5b1-1a57e2f818f7",
+      "name": "OpenAI",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "maxTries": 5,
+      "credentials": {
+        "openAiApi": {
+          "id": "rmudht9sL6cgETQK",
+          "name": "OpenAi account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// This runs for every incoming item\nreturn items.map(item => {\n  const text = $input.first().json.body.topic; // replace with the actual field name\n\n  // Split off the \"Example Vendors\" part\n  const [mainPart, vendorsPart = ''] = text.split('|').map(s => s.trim());\n\n  // Extract topic and definition\n  const [topic = '', definition = ''] = mainPart.split(' - ').map(s => s.trim());\n\n  // Clean up and split the vendors list\n  const exampleVendors = vendorsPart\n    .replace(/^Example Vendors:\\s*/i, '')\n    .split(',')\n    .map(v => v.trim())\n    .filter(v => v);\n\n  return {\n    json: {\n      topic,\n      definition,\n      exampleVendors\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -7584,
+        1488
+      ],
+      "id": "7b0f7ac2-4f62-40bc-9eae-0965ccaf6975",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "fromEmail": "contact@apaia-technology.io",
+        "toEmail": "={{ $('Merge Outputs').item.json.email }}",
+        "subject": "=“ {{ $('Merge Outputs').item.json.topic[0] }} ” Analysis Finished – View Results",
+        "html": "=<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <title>Topic Processing Complete</title>\n  </head>\n  <body style=\"margin:0; padding:0; font-family: Arial, sans-serif; background-color:#f4f4f4;\">\n    <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">\n      <tr>\n        <td align=\"center\" style=\"padding: 20px 0;\">\n          <table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 2px 4px rgba(0,0,0,0.1);\">\n            \n            <!-- Header -->\n            <tr>\n              <td style=\"background-color:#0044cc; padding:20px; text-align:center;\">\n                <h1 style=\"color:#ffffff; margin:0; font-size:24px;\">Processing Complete</h1>\n              </td>\n            </tr>\n            \n            <!-- Body -->\n            <tr>\n              <td style=\"padding:30px; color:#333333; line-height:1.6;\">\n                <p style=\"margin-top:0;\">Hello,</p>\n                <p>We’re pleased to let you know that the processing for the topic <strong> {{ $('Calculating Runpod Consumption').item.json.topic[0] }} </strong> has been finalized.</p>\n                <p style=\"text-align:center; margin:30px 0;\">\n                  <a href=\"http://beta-agent.apaia-technology.io\" \n                     style=\"background-color:#007bff; color:#ffffff; text-decoration:none; \n                            padding:12px 24px; border-radius:4px; display:inline-block; font-size:16px;\">\n                    View Your Results\n                  </a>\n                </p>\n                <p>If you have any questions or need further clarification, simply reply to this email—we’re here to help!</p>\n                <p style=\"margin-bottom:0;\">Best regards,<br/>\n                     <strong>APAIA Technology</strong><br/>\n\n                </p>\n              </td>\n            </tr>\n            \n            <!-- Footer -->\n            <tr>\n              <td style=\"background-color:#f0f0f0; padding:15px; text-align:center; font-size:12px; color:#777777;\">\n                © 2025 APAIA Technology — All rights reserved.\n              </td>\n            </tr>\n            \n          </table>\n        </td>\n      </tr>\n    </table>\n  </body>\n</html>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        208
+      ],
+      "id": "49cb329c-71b4-4dee-8389-70768002fa1f",
+      "name": "Send Email",
+      "webhookId": "65537e5d-e059-487b-b11b-fda791512369",
+      "credentials": {
+        "smtp": {
+          "id": "9YQATy71v6spfX1d",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "o3-mini",
+          "mode": "list",
+          "cachedResultName": "o3-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -768,
+        1968
+      ],
+      "id": "05778edc-e83f-4945-a0cc-070bbc707dd7",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "rmudht9sL6cgETQK",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "=python3 /home/node/.n8n/scripts/scraptio.py \"{{ $('Loop Over Links').item.json.url }}\""
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -2048,
+        1040
+      ],
+      "id": "fd256f91-3a2d-4e9f-9b2a-9b1740e0fd30",
+      "name": "Scrape the Link_scrapio",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "maxTries": 5
+    }
+  ],
+  "connections": {
+    "Inserting New Topic to Database": {
+      "main": [
+        [
+          {
+            "node": "Retrieving New Topic ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieving New Topic ID": {
+      "main": [
+        [
+          {
+            "node": "Preparing New Input variables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparing New Input variables": {
+      "main": [
+        [
+          {
+            "node": "Aggregating Input Variables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregating Input Variables": {
+      "main": [
+        [
+          {
+            "node": "Generating Queries",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Outputs",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Waiting for Topic": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existence of the Topic": {
+      "main": [
+        [
+          {
+            "node": "Check existence of the Received Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check existence of the Received Topic": {
+      "main": [
+        [
+          {
+            "node": "Preparing Input Variables",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Inserting New Topic to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparing Input Variables": {
+      "main": [
+        [
+          {
+            "node": "Aggregating Input Variables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generating Queries": {
+      "main": [
+        [
+          {
+            "node": "Searching Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Searching Links": {
+      "main": [
+        [
+          {
+            "node": "Preparing Links to Looping",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparing Links to Looping": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Links": {
+      "main": [
+        [
+          {
+            "node": "Retrieving Articles with Rank 4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Existence of the Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existence of the Link": {
+      "main": [
+        [
+          {
+            "node": "If Link Does Not Exist, Continue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Link Does Not Exist, Continue": {
+      "main": [
+        [
+          {
+            "node": "Scrape the Link_scrapio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If Error, Break",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Scraping is Done, Continue": {
+      "main": [
+        [
+          {
+            "node": "If Error, Break",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If Scraping Does Not Contain Errors, Continue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Scraping Does Not Contain Errors, Continue": {
+      "main": [
+        [
+          {
+            "node": "If Error, Break",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Suppliers Exist, Continue": {
+      "main": [
+        [
+          {
+            "node": "If Error, Break",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparing Suppliers as Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparing Suppliers as Items": {
+      "main": [
+        [
+          {
+            "node": "Supplier Validator Sub Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If Error, Break",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supplier Validator Sub Workflow": {
+      "main": [
+        [
+          {
+            "node": "Aggregating Validated Suppliers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregating Validated Suppliers": {
+      "main": [
+        [
+          {
+            "node": "Preparing Variables for Ranking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparing Variables for Ranking": {
+      "main": [
+        [
+          {
+            "node": "Ranking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ranking": {
+      "main": [
+        [
+          {
+            "node": "Inserting Articles to Ranking Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inserting Articles to Ranking Table": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Error, Break": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieving Articles with Rank 4": {
+      "main": [
+        [
+          {
+            "node": "Calculating Final Score and Appending Mentioned Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculating Final Score and Appending Mentioned Links": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Suppliers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Suppliers": {
+      "main": [
+        [
+          {
+            "node": "Merge Outputs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Selecting Supplier ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Selecting Supplier ID": {
+      "main": [
+        [
+          {
+            "node": "If Exists, Continue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Exists, Continue": {
+      "main": [
+        [
+          {
+            "node": "If Error, Break1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Calculating New Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Error, Break1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Suppliers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculating New Score": {
+      "main": [
+        [
+          {
+            "node": "Updating Final Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Updating Final Score": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Suppliers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Outputs": {
+      "main": [
+        [
+          {
+            "node": "Calculating Runpod Consumption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a pod": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Ollama Address & Pod ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Ollama Address & Pod ID": {
+      "main": [
+        [
+          {
+            "node": "Wait 2 minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2 minutes": {
+      "main": [
+        [
+          {
+            "node": "Check Existence of the Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculating Runpod Consumption": {
+      "main": [
+        [
+          {
+            "node": "Insert Runpod Consumption Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Runpod Consumption Details": {
+      "main": [
+        [
+          {
+            "node": "Delete Running Pod",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Running Pod": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL1": {
+      "main": [
+        [
+          {
+            "node": "MySQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [],
+        [
+          {
+            "node": "MySQL2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL2": {
+      "main": [
+        [
+          {
+            "node": "Retrieving New Topic ID1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieving New Topic ID1": {
+      "main": [
+        [
+          {
+            "node": "MySQL3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL3": {
+      "main": [
+        [
+          {
+            "node": "MySQL4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [
+          {
+            "node": "If Suppliers Exist, Continue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Check Existence of the Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Format Validator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape the Link_scrapio": {
+      "main": [
+        [
+          {
+            "node": "If Scraping is Done, Continue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "Waiting for Topic": [
+      {
+        "json": {
+          "headers": {
+            "accept": "text/plain, application/json, application/*+json, */*",
+            "content-type": "application/json",
+            "user-agent": "Java/17.0.14",
+            "host": "localhost:5678",
+            "connection": "keep-alive",
+            "transfer-encoding": "chunked"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "topic": "Insight Engines - Plateformes de recherche et de découverte d'informations qui exploitent l'IA pour interroger une base documentaire interne hétérogène et restituer des bonnes pratiques contextualisées avec traçabilité vers les sources, afin d'améliorer la qualité de réalisation des projets et de professionnaliser les équipes. | Example Vendors: Sinequa, Mindbreeze, Coveo, Lucidworks",
+            "search_datetime": "2025-09-10 16:43:14",
+            "searchTopX": "10",
+            "userId": "1",
+            "callDay": "MONDAY",
+            "email": "alaeddine.mansouri@apaia-technology.io",
+            "frequency": "weekly"
+          },
+          "webhookUrl": "http://localhost:5678/webhook/77b4d30b-cf0b-4297-8206-be86d0d4d52e",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "versionId": "4e44eb90-e3ce-4431-878a-fc7c3138ff5a",
+  "activeVersionId": null,
+  "versionCounter": 2,
+  "triggerCount": 0,
+  "tags": [
+    {
+      "updatedAt": "2025-08-12T10:09:02.677Z",
+      "createdAt": "2025-08-12T10:09:02.677Z",
+      "id": "auGKHaADmz4Oz4sg",
+      "name": "1.0"
+    }
+  ],
+  "shared": [
+    {
+      "updatedAt": "2025-09-16T08:50:16.645Z",
+      "createdAt": "2025-09-16T08:50:16.645Z",
+      "role": "workflow:owner",
+      "workflowId": "9zMyoBvMYvJ6Rsgg",
+      "projectId": "djYaStOn9zI5EsPo",
+      "project": {
+        "updatedAt": "2025-09-15T16:43:28.477Z",
+        "createdAt": "2025-08-12T10:01:21.384Z",
+        "id": "djYaStOn9zI5EsPo",
+        "name": "alaeddine mansouri <alaeddine.mansouri@apaia-technology.io>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "4a26304c-2848-4f11-9dde-91390758dc98"
+      }
+    }
+  ]
+}
