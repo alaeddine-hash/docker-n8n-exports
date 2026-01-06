@@ -1,14 +1,22 @@
-cd ~/n8n-docker
-
-WORKDIR=./n8n-workflow  # <-- ajuste si besoin
+WORKDIR=./   # <-- your folder with *.json
 
 for f in "$WORKDIR"/*.json; do
   tmp="$(mktemp)"
-  jq '
+
+  # generate one uuid per file (good enough and minimal)
+  UUID="$(uuidgen)"
+
+  jq --arg uuid "$UUID" '
+    def fix:
+      .active = false
+      | .versionId = (
+          if (.versionId == null or .versionId == "") then $uuid else .versionId end
+        );
+
     if type=="array" then
-      map(.active=false | del(.versionId))
+      map(fix)
     else
-      (.active=false | del(.versionId))
+      fix
     end
   ' "$f" > "$tmp" && mv "$tmp" "$f"
 done
